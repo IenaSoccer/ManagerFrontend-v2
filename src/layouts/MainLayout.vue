@@ -15,7 +15,7 @@
 
 <script setup lang="ts">
 import TopHeader from 'src/components/Header/TopHeader.vue';
-import SideBar from 'src/components/Sidebar.vue';
+import SideBar from 'src/components/SideBar.vue';
 
 import { inject, onBeforeUnmount, onMounted } from 'vue';
 import type { EventBus } from 'quasar';
