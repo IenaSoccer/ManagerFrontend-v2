@@ -31,7 +31,7 @@ jobs:
           
       - name: Install dependencies and build assets
         run: |
-          npm ci
+          npm install
           npm run lint
           npm run build
         
@@ -64,5 +64,5 @@ jobs:
               git reset --hard "origin/${{ github.ref_name }}"
             fi
             cd "release"
-            npm ci
+            npm install
             npm run build
