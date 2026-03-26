@@ -1,11 +1,4 @@
 @font-face {
-  font-family: "College";
-  src: url("fonts/OldCollege.ttf") format("truetype");
-  font-weight: 300;
-  font-style: normal;
-}
-
-@font-face {
   font-family: "Tenada";
   src: url("fonts/Tenada.ttf") format("truetype");
   font-weight: 300;
@@ -46,10 +39,6 @@ html,body {
   font-family: Tenada, sans-serif;
 }
 
-.nunito {
-  font-family: Nunito, sans-serif;
-}
-
 .roboto {
-  font-family: Roboto, Nunito, sans-serif;
+  font-family: Roboto, sans-serif;
 }
