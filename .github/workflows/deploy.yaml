@@ -1,0 +1,56 @@
+name: Deploy Quasar Application - Management Frontend
+
+on:
+  push:
+    branches: [ release, staging ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          
+      - name: Install dependencies and build assets
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+        
+      - name: Deploy to production server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+            REPO_SSH_URL="git@github.com:${{ github.repository }}.git"
+            KEY_FILE="${{ secrets.DEPLOY_KEY_PATH }}"
+            mkdir -p "$HOME/.ssh"
+            chmod 700 "$HOME/.ssh"
+            test -f "$KEY_FILE"
+            chmod 600 "$KEY_FILE"
+            ssh-keyscan github.com >> "$HOME/.ssh/known_hosts"
+            chmod 644 "$HOME/.ssh/known_hosts"
+            export GIT_SSH_COMMAND="ssh -i $KEY_FILE -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+            mkdir -p "$DEPLOY_PATH"
+            cd "$DEPLOY_PATH"
+            rm -rf release
+            if [ ! -d .git ]; then
+              git clone --branch "${{ github.ref_name }}" "$REPO_SSH_URL" release
+            else
+              git remote set-url origin "$REPO_SSH_URL"
+              git fetch origin "${{ github.ref_name }}"
+              git reset --hard "origin/${{ github.ref_name }}"
+            fi
+            cd "release"
+            npm ci
+            npm run build
