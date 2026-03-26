@@ -3,10 +3,10 @@
     <div id="user-details" class="select-none text-right">
       <span class="block text-subtitle2 text-capitalize">{{
         authStore.currentUser?.details.firstname ?? 'Utente'
-      }}</span>
+        }}</span>
       <span class="block text-caption text-capitalize">{{
         roles[authStore.currentUser?.user.role ?? ''] ?? 'Ruolo generico'
-      }}</span>
+        }}</span>
     </div>
     <q-btn class="w-16 h-16" flat rounded to="/dashboard/account">
       <template #default>
@@ -27,6 +27,6 @@ const computedThumbnail = computed(() => {
   const baseURL = String(process.env.ATTACHMENTS_URL ?? '');
   return authStore.currentUser?.details.thumbnail
     ? `${baseURL}/${authStore.currentUser.details.thumbnail}`
-    : '/src/assets/avatar.png';
+    : '~assets/avatar.png';
 });
 </script>
