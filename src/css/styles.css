@@ -1,0 +1,55 @@
+@font-face {
+  font-family: "College";
+  src: url("fonts/OldCollege.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Tenada";
+  src: url("fonts/Tenada.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Coolvetica";
+  src: url("fonts/Coolvetica Normal.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Coolvetica";
+  src: url("fonts/Coolvetica Italic.otf") format("opentype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Coolvetica";
+  src: url("fonts/Coolvetica Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+
+html,body {
+  overflow-x: hidden;
+}
+
+.coolvetica {
+  font-family: Coolvetica, sans-serif;
+}
+
+.tenada {
+  font-family: Tenada, sans-serif;
+}
+
+.nunito {
+  font-family: Nunito, sans-serif;
+}
+
+.roboto {
+  font-family: Roboto, Nunito, sans-serif;
+}
