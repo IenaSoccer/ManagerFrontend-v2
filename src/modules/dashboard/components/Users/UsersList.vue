@@ -22,19 +22,23 @@
                     class="w-full px-3 py-2 bg-white/80 border-2 border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition" />
                 </td>
                 <td class="px-6 py-4">
-                  <select v-model="user.role"
+                  <select v-model="user.role" :disabled="user.id === authStore.currentUser?.user.id"
                     class="w-full px-3 py-2 bg-white/80 border-2 border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition">
                     <option v-for="(v, k) in roles" :value="k" :key="k">{{ v }}</option>
                   </select>
                 </td>
                 <td class="px-6 py-4 space-x-2 space-y-2">
-                  <q-btn :disabled="isEditButtonDisabled" @click="editUserDetails(user.id)" icon="edit"
+                  <q-btn :disabled="isEditButtonDisabled || user.id === authStore.currentUser?.user.id"
+                    @click="editUserDetails(user.id)" icon="edit"
                     class="px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:shadow-lg hover:shadow-blue-500/50 transform hover:scale-105 transition-all" />
-                  <q-btn :disabled="isSaveButtonDisabled" @click="saveUser(user.id, user)" icon="save"
+                  <q-btn :disabled="isSaveButtonDisabled || user.id === authStore.currentUser?.user.id"
+                    @click="saveUser(user.id, user)" icon="save"
                     class="px-3 py-2 !mt-0 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-green-500/50 transform hover:scale-105 transition-all" />
-                  <q-btn :disabled="isDeleteButtonDisabled" @click="deleteUser(user.id)" icon="delete"
+                  <q-btn :disabled="isDeleteButtonDisabled || user.id === authStore.currentUser?.user.id"
+                    @click="deleteUser(user.id)" icon="delete"
                     class="px-3 py-2 !mt-0 bg-gradient-to-r from-red-500 to-red-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-red-500/50 transform hover:scale-105 transition-all" />
-                  <q-btn :disabled="isResetPasswordButtonDisabled" @click="resetPassword(user.id)" icon="lock_reset"
+                  <q-btn :disabled="isResetPasswordButtonDisabled || user.id === authStore.currentUser?.user.id"
+                    @click="resetPassword(user.id)" icon="lock_reset"
                     class="px-3 py-2 !mt-0 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-yellow-500/50 transform hover:scale-105 transition-all" />
                 </td>
               </tr>
@@ -71,20 +75,24 @@
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <label class="block text-xs font-bold text-purple-800 mb-1">Ruolo</label>
-                <select v-model="user.role"
+                <select v-model="user.role" :disabled="user.id === authStore.currentUser?.user.id"
                   class="w-full px-3 py-2 bg-white/80 border-2 border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
                   <option v-for="(v, k) in roles" :value="k" :key="k">{{ v }}</option>
                 </select>
               </div>
             </div>
             <div class="flex gap-2">
-              <q-btn :disabled="isEditButtonDisabled" @click="editUserDetails(user.id)" icon="edit"
+              <q-btn :disabled="isEditButtonDisabled || user.id === authStore.currentUser?.user.id"
+                @click="editUserDetails(user.id)" icon="edit"
                 class="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-blue-500/50 transition-all" />
-              <q-btn :disabled="isSaveButtonDisabled" @click="saveUser(user.id, user)" icon="save"
+              <q-btn :disabled="isSaveButtonDisabled || user.id === authStore.currentUser?.user.id"
+                @click="saveUser(user.id, user)" icon="save"
                 class="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-green-500/50 transition-all" />
-              <q-btn :disabled="isDeleteButtonDisabled" @click="deleteUser(user.id)" icon="delete"
+              <q-btn :disabled="isDeleteButtonDisabled || user.id === authStore.currentUser?.user.id"
+                @click="deleteUser(user.id)" icon="delete"
                 class="flex-1 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-red-500/50 transition-all" />
-              <q-btn :disabled="isResetPasswordButtonDisabled" @click="resetPassword(user.id)" icon="lock_reset"
+              <q-btn :disabled="isResetPasswordButtonDisabled || user.id === authStore.currentUser?.user.id"
+                @click="resetPassword(user.id)" icon="lock_reset"
                 class="flex-1 px-4 py-2 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-yellow-500/50 transition-all" />
             </div>
           </div>
@@ -125,6 +133,7 @@ import type { Globals } from 'src/interfaces/globals';
 
 const globals = inject('globals') as Globals;
 const usersStore = globals.stores.users;
+const authStore = globals.stores.auth;
 const bus = inject<EventBus>('bus');
 
 const isSaveButtonDisabled = ref(false);

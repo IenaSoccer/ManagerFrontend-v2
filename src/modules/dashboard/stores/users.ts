@@ -48,7 +48,7 @@ export const useUsersStore = defineStore('UsersStore', {
       return response
         .then((res) => {
           const content = res.data?.body?.content?.data as UserInfo[] | undefined;
-          const total = (res.data?.body?.content?.total - 1) as number | undefined;
+          const total = (res.data?.body?.content?.total) as number | undefined;
           this.users = content ?? null;
           this.total = total ?? 0;
           return this.users;

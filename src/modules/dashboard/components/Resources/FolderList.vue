@@ -1,51 +1,28 @@
 <template>
   <!-- Folder List -->
-  <div
-    class="p-6 bg-white rounded-xl shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
-  >
+  <div class="p-6 bg-white rounded-xl shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
     <div class="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3 select-none">
       <q-icon name="folder" class="inline-block mr-1" size="sm" />
     </div>
     <q-tree v-if="isLoaded" :nodes="formattedFolderTree" node-key="id" default-expand-all>
       <template v-slot:default-header="prop">
-        <div
-          class="flex items-center gap-2 w-full cursor-pointer"
+        <div class="flex items-center gap-2 w-full cursor-pointer"
           :class="{ 'bg-blue-100 rounded px-2 py-1': selectedFolderId === prop.node.id }"
-          @click="selectFolderId(prop.node)"
-        >
-          <q-btn
-            v-if="editingId === prop.node.id"
-            flat
-            dense
-            round
-            size="sm"
-            :style="{ backgroundColor: editData.color }"
-            class="flex-shrink-0"
-          >
+          @click="selectFolderId(prop.node)">
+          <q-btn v-if="editingId === prop.node.id" flat dense round size="sm"
+            :style="{ backgroundColor: editData.color }" class="flex-shrink-0">
             <q-popup-proxy>
               <q-color v-model="editData.color" />
             </q-popup-proxy>
           </q-btn>
-          <div
-            v-else
-            class="w-3 h-3 rounded-full flex-shrink-0"
-            :style="{ backgroundColor: prop.node.color }"
-          ></div>
+          <div v-else class="w-3 h-3 rounded-full flex-shrink-0" :style="{ backgroundColor: prop.node.color }"></div>
 
-          <input
-            v-if="editingId === prop.node.id"
-            type="text"
-            v-model="editData.name"
-            class="flex-grow px-2 py-1 border rounded text-sm"
-          />
+          <input v-if="editingId === prop.node.id" type="text" v-model="editData.name"
+            class="flex-grow px-2 py-1 border rounded text-sm" />
           <span v-else class="flex-grow">{{ prop.node.name }}</span>
 
-          <select
-            @click.stop
-            v-if="editingId === prop.node.id"
-            v-model="editData.visibility"
-            class="px-2 py-1 border rounded text-xs"
-          >
+          <select @click.stop v-if="editingId === prop.node.id" v-model="editData.visibility"
+            class="px-2 py-1 border rounded text-xs">
             <option :value="editData.visibility?.length ? editData.visibility : randomString">
               {{ editData.visibility?.length ? editData.visibility : randomString }}
             </option>
@@ -53,59 +30,20 @@
           </select>
           <span v-else class="text-xs text-gray-500 select-all">{{
             prop.node.visibility || 'public'
-          }}</span>
+            }}</span>
 
           <!-- Action buttons -->
           <div class="flex gap-1">
-            <q-btn
-              v-if="editingId === prop.node.id"
-              flat
-              dense
-              round
-              size="sm"
-              icon="check"
-              color="green"
-              @click.stop="onSave(prop.node)"
-            />
+            <q-btn v-if="editingId === prop.node.id" flat dense round size="sm" icon="check" color="green"
+              @click.stop="onSave(prop.node)" />
             <q-btn v-else flat dense round size="sm" icon="add" @click.stop="onAdd(prop.node)" />
-            <q-btn
-              v-if="editingId === prop.node.id"
-              flat
-              dense
-              round
-              size="sm"
-              icon="close"
-              color="red"
-              @click.stop="onCancel"
-            />
-            <q-btn
-              v-else
-              flat
-              dense
-              round
-              size="sm"
-              icon="edit"
-              @click.stop="onEditStart(prop.node)"
-            />
-            <q-btn
-              flat
-              :disabled="!prop.node.pid"
-              dense
-              round
-              size="sm"
-              icon="delete"
-              @click.stop="onRemove(prop.node)"
-            />
-            <q-btn
-              v-if="prop.node.visibility"
-              flat
-              dense
-              round
-              size="sm"
-              icon="share"
-              color="orange"
-              @click.stop="onShare(prop.node)"
-            />
+            <q-btn v-if="editingId === prop.node.id" flat dense round size="sm" icon="close" color="red"
+              @click.stop="onCancel" />
+            <q-btn v-else flat dense round size="sm" icon="edit" @click.stop="onEditStart(prop.node)" />
+            <q-btn flat :disabled="!prop.node.pid" dense round size="sm" icon="delete"
+              @click.stop="onRemove(prop.node)" />
+            <q-btn v-if="prop.node.visibility" flat dense round size="sm" icon="share" color="orange"
+              @click.stop="onShare(prop.node)" />
           </div>
         </div>
       </template>
@@ -170,10 +108,14 @@ const getFolders = (nodeId?: string) => {
       })
       .catch((error: ServerResponse) => {
         handleStatus(error, bus!);
+      }).finally(() => {
+        isLoaded.value = true;
       });
   } else {
     foldersStore.getFolderById(nodeId).catch((error: ServerResponse) => {
       handleStatus(error, bus!);
+    }).finally(() => {
+      isLoaded.value = true;
     });
   }
 };

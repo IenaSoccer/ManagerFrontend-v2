@@ -104,7 +104,7 @@ const computedThumbnail = computed(() => {
   const baseURL = String(process.env.ATTACHMENTS_URL ?? '');
   return account.value?.details.thumbnail
     ? `${baseURL}/${account.value.details.thumbnail}`
-    : '~assets/avatar.png';
+    : `${baseURL}/avatar.png`;
 });
 
 const fetchAccountInfo = () => {
