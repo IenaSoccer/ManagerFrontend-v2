@@ -1,40 +1,32 @@
-name: Deploy Quasar Application - Management Frontend
+name: Deploy Quasar Application
 
 on:
+  # Run the workflow only for the intended release branches.
   push:
     branches: [ release, staging ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
 
     steps:
       - uses: actions/checkout@v4
 
+      # Set up Node.js and enable npm cache on the GitHub runner.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: 'npm'
-
-      - name: Create .env.production from environment variables
-        run: |
-          mkdir -p config
-          cat > config/.env.production << 'EOF'
-          API_URL=${{ vars.API_URL }}
-          MEDIA_URL=${{ vars.MEDIA_URL }}
-          ATTACHMENTS_URL=${{ vars.ATTACHMENTS_URL }}
-          HOMEPAGE_URL=${{ vars.HOMEPAGE_URL }}
-          PROFILE_URL=${{ vars.PROFILE_URL }}
-          EOF
           
+      # Ensure the project installs, passes linting, and builds before deployment.
       - name: Install dependencies and build assets
         run: |
           npm install
           npm run lint
           npm run build
         
+      # Connect to the remote server and update or clone the current branch.
       - name: Deploy to production server
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -43,9 +35,12 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
+            # Variables and paths loaded from repository secrets.
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
             REPO_SSH_URL="git@github.com:${{ github.repository }}.git"
             KEY_FILE="${{ secrets.DEPLOY_KEY_PATH }}"
+
+            # Prepare the SSH configuration required to access GitHub from the server.
             mkdir -p "$HOME/.ssh"
             chmod 700 "$HOME/.ssh"
             test -f "$KEY_FILE"
@@ -53,16 +48,20 @@ jobs:
             ssh-keyscan github.com >> "$HOME/.ssh/known_hosts"
             chmod 644 "$HOME/.ssh/known_hosts"
             export GIT_SSH_COMMAND="ssh -i $KEY_FILE -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+
+            # Recreate the release directory and sync the branch to deploy.
             mkdir -p "$DEPLOY_PATH"
             cd "$DEPLOY_PATH"
             rm -rf release
-            if [ ! -d .git ]; then
+            if [ ! -d release/.git ]; then
               git clone --branch "${{ github.ref_name }}" "$REPO_SSH_URL" release
             else
               git remote set-url origin "$REPO_SSH_URL"
               git fetch origin "${{ github.ref_name }}"
               git reset --hard "origin/${{ github.ref_name }}"
             fi
+
+            # Install dependencies on the server and generate the final build.
             cd "release"
             npm install
             npm run build
