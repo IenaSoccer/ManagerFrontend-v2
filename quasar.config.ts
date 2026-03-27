@@ -2,7 +2,7 @@ import { configDotenv } from 'dotenv';
 import { defineConfig } from '#q-app/wrappers';
 
 configDotenv({
-  path: './config/.env.development',
+  path: './config/.env.production',
   debug: true,
 });
 
@@ -13,7 +13,7 @@ export default defineConfig(() => {
     extras: ['fontawesome-v6', 'roboto-font', 'material-icons'],
     build: {
       envFolder: 'config',
-      envFiles: ['.env.development', '.env.production'],
+      envFiles: ['.env.production'],
       target: {
         browser: ['es2022', 'firefox115', 'chrome115', 'safari14'],
         node: 'node20',
