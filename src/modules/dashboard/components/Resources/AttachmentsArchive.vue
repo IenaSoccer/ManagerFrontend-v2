@@ -268,7 +268,7 @@ const removeAttachment = (index: number) => {
 
 const computedThumbnail = (path: string) => {
   const baseURL = String(process.env.ATTACHMENTS_URL ?? '#');
-  return `${baseURL}/${path}`;
+  return `${baseURL}/attachments/${path}`;
 };
 
 const onDialogHide = () => {

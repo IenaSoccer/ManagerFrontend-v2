@@ -105,7 +105,7 @@ const isSaveButtonDisabled = ref(false);
 const computedThumbnail = computed(() => {
   const baseURL = String(process.env.ATTACHMENTS_URL ?? '');
   return formData.value?.details.thumbnail
-    ? `${baseURL}/${formData.value.details.thumbnail}`
+    ? `${baseURL}/profiles/${formData.value.details.thumbnail}`
     : `${baseURL}/avatar.png`;
 });
 

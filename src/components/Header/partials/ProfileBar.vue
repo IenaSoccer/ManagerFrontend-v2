@@ -26,7 +26,7 @@ const authStore = globals.stores.auth;
 const computedThumbnail = computed(() => {
   const baseURL = String(process.env.ATTACHMENTS_URL ?? '');
   return authStore.currentUser?.details.thumbnail
-    ? `${baseURL}/${authStore.currentUser.details.thumbnail}`
+    ? `${baseURL}/profiles/${authStore.currentUser.details.thumbnail}`
     : `${baseURL}/avatar.png`;
 });
 </script>

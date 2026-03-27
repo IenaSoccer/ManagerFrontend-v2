@@ -1,49 +1,22 @@
 <template>
   <div class="bg-white my-8 rounded-xl p-5 shadow-sm border border-gray-200">
     <div
-      class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-4 select-none flex items-center justify-between"
-    >
+      class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-4 select-none flex items-center justify-between">
       <div class="flex items-center gap-2">
         <q-icon name="resources" size="sm" color="blue" />
       </div>
       <div>
-        <q-toggle
-          :disable="!selectedFolderId"
-          v-model="resourceMode"
-          :true-value="'gallery'"
-          :false-value="'post'"
-          :label="resourceMode === 'post' ? 'Post' : 'Galleria'"
-          color="blue"
-          class="pr-4"
-        />
-        <q-btn
-          flat
-          dense
-          round
-          icon="add"
-          color="blue"
-          size="sm"
-          :disabled="!selectedFolderId"
-          @click="openAddResourceDialog(selectedFolderId!, resourceMode)"
-          title="Aggiungi risorsa"
-        />
+        <q-toggle :disable="!selectedFolderId" v-model="resourceMode" :true-value="'gallery'" :false-value="'post'"
+          :label="resourceMode === 'post' ? 'Post' : 'Galleria'" color="blue" class="pr-4" />
+        <q-btn flat dense round icon="add" color="blue" size="sm" :disabled="!selectedFolderId"
+          @click="openAddResourceDialog(selectedFolderId!, resourceMode)" title="Aggiungi risorsa" />
       </div>
     </div>
-    <q-list
-      v-if="isLoaded"
-      class="bg-white rounded-lg shadow-md max-h-96 overflow-y-auto border border-gray-200"
-    >
-      <q-item
-        v-for="resource in resources"
-        :key="resource.id"
-        clickable
-        @click="selectResourceId(resource)"
-        :class="{
-          'bg-blue-50 border-l-4 border-blue-500': selectedResourceId === resource.id,
-          'hover:bg-gray-50 transition-colors': selectedResourceId !== resource.id,
-        }"
-        class="border-b border-gray-100 last:border-b-0"
-      >
+    <q-list v-if="isLoaded" class="bg-white rounded-lg shadow-md max-h-96 overflow-y-auto border border-gray-200">
+      <q-item v-for="resource in resources" :key="resource.id" clickable @click="selectResourceId(resource)" :class="{
+        'bg-blue-50 border-l-4 border-blue-500': selectedResourceId === resource.id,
+        'hover:bg-gray-50 transition-colors': selectedResourceId !== resource.id,
+      }" class="border-b border-gray-100 last:border-b-0">
         <q-item-section avatar>
           <q-img v-if="computedThumbnails[resource.id]" :src="computedThumbnails[resource.id]" />
         </q-item-section>
@@ -51,25 +24,13 @@
           <q-item-label class="font-semibold text-gray-800">{{ resource.name }}</q-item-label>
           <q-item-label caption class="text-gray-500 text-xs">{{
             resource.description
-          }}</q-item-label>
+            }}</q-item-label>
         </q-item-section>
         <q-item-section side>
           <div class="flex items-center gap-2">
-            <q-toggle
-              v-model="resource.attributes.preview"
-              v-if="resource.content.type"
-              @click.stop
-              label="Bozza"
-            />
-            <q-btn
-              flat
-              dense
-              round
-              icon="delete"
-              color="negative"
-              size="sm"
-              @click.stop="deleteResource(resource.id)"
-            />
+            <q-toggle v-model="resource.attributes.preview" v-if="resource.content.type" @click.stop label="Bozza" />
+            <q-btn flat dense round icon="delete" color="negative" size="sm"
+              @click.stop="deleteResource(resource.id)" />
           </div>
         </q-item-section>
       </q-item>
@@ -108,7 +69,7 @@ const computeThumbnail = async (resourceId: string) => {
     .getAttachmentsByFolderId(resource.fid)
     .then((attachments: AttachmentType[] | null) => {
       computedThumbnails.value[resource.id] =
-        `${String(process.env.ATTACHMENTS_URL ?? '#')}/${attachments?.find((a) => a.id === resource.thumbnail)?.data.path ?? ''}`;
+        `${String(process.env.ATTACHMENTS_URL ?? '#')}/attachments/${attachments?.find((a) => a.id === resource.thumbnail)?.data.path ?? ''}`;
     })
     .catch(() => {
       return '';
