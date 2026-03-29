@@ -38,10 +38,23 @@
         <label class="flex items-center gap-2 font-semibold text-gray-800 mb-2 text-base">
           Contenuto
         </label>
-        <div v-if="resource?.content.type === 1"
-          class="border-2 border-gray-200 rounded-xl overflow-hidden transition-all duration-300 focus-within:border-purple-500 focus-within:ring-4 focus-within:ring-purple-100">
-          <QuillEditor v-if="resource?.content.type" v-model:content="resource!.content.data as string"
-            contentType="html" toolbar="full" theme="snow" placeholder="Scrivi il contenuto..." />
+        <div v-if="resource?.content.type === 1" class="space-y-3">
+          <div class="flex justify-end">
+            <button type="button" @click="toggleHtmlSourceMode"
+              class="px-4 py-2 rounded-lg border-2 border-gray-200 text-sm font-semibold text-gray-700 transition-all duration-300 hover:border-purple-400 hover:text-purple-700">
+              {{ isHtmlSourceMode ? 'Editor visuale' : 'Sorgente HTML' }}
+            </button>
+          </div>
+
+          <div v-if="!isHtmlSourceMode"
+            class="border-2 border-gray-200 rounded-xl overflow-hidden transition-all duration-300 focus-within:border-purple-500 focus-within:ring-4 focus-within:ring-purple-100">
+            <QuillEditor v-model:content="editorContent" contentType="html" toolbar="full" theme="snow"
+              placeholder="Scrivi il contenuto..." />
+          </div>
+
+          <textarea v-else v-model="editorContent"
+            class="w-full min-h-[350px] px-4 py-3 border-2 border-gray-200 rounded-xl font-mono text-sm transition-all duration-300 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100"
+            placeholder="Modifica il sorgente HTML..."></textarea>
         </div>
         <div v-else class="flex gap-4 flex-col md:flex-row">
           <div class="w-full md:w-1/3">
@@ -114,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { inject, onBeforeUnmount, onMounted, ref } from 'vue';
+import { inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import type { Resource } from '../../interfaces/resources';
@@ -132,6 +145,23 @@ const resource = ref<Resource<string> | null>(null);
 const bus = inject<EventBus>('bus');
 const isEditing = ref(false);
 const showForm = ref(false);
+const isHtmlSourceMode = ref(false);
+const editorContent = ref('');
+
+const syncEditorContentFromResource = () => {
+  if (!resource.value || resource.value.content.type !== 1) return;
+  editorContent.value = String(resource.value.content.data ?? '');
+};
+
+const toggleHtmlSourceMode = () => {
+  isHtmlSourceMode.value = !isHtmlSourceMode.value;
+};
+
+watch(editorContent, (value) => {
+  if (!resource.value || resource.value.content.type !== 1) return;
+  resource.value.content.data = value;
+});
+
 const showArchiveModalContent = (
   folderId: string,
   singleSelectionMode: boolean,
@@ -149,6 +179,8 @@ onMounted(() => {
 
     isEditing.value = true;
     resource.value = res;
+    isHtmlSourceMode.value = false;
+    syncEditorContentFromResource();
 
     showForm.value = true;
   });
@@ -195,6 +227,8 @@ onMounted(() => {
         custom: {},
       },
     };
+    isHtmlSourceMode.value = false;
+    syncEditorContentFromResource();
     showForm.value = true;
   });
 });
@@ -226,6 +260,10 @@ const removeProperty = (key: string) => {
 };
 
 const handleSubmit = () => {
+  if (resource.value?.content.type === 1) {
+    resource.value.content.data = editorContent.value;
+  }
+
   isSaving.value = true;
 
   if (isEditing.value) {
