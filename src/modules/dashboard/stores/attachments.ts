@@ -23,6 +23,8 @@ export const useAttachmentsStore = defineStore('AttachmentsStore', {
       return {
         STORE_GETATTACHMENTS: (folderId: string, per_page?: number, page: number = 1) =>
           `${base}/attachments/${folderId}?${per_page ? `per_page=${per_page}` : ''}${page ? `&page=${page}` : ''}`,
+        STORE_SEARCHATTACHMENTS: (query: string, folderId: string) =>
+          `${base}/attachments/${folderId}/search?query=${encodeURIComponent(query)}`,
         STORE_ADDATTACHMENT: (folderId: string) => `${base}/attachments/${folderId}`,
         STORE_DELETEATTACHMENT: (folderId: string, attachmentId: string) =>
           `${base}/attachments/${folderId}/${attachmentId}`,
@@ -48,6 +50,33 @@ export const useAttachmentsStore = defineStore('AttachmentsStore', {
             | undefined;
           this.attachments = content?.data ?? null;
           this.total = content?.total ?? 0;
+          return this.attachments ?? null;
+        })
+        .catch((err) => {
+          if (axios.isAxiosError(err)) throw err.response?.data ?? err;
+          throw err;
+        });
+    },
+    async search(query: string, folderId: string): Promise<AttachmentType[] | null> {
+      const response = axios.get<ServerResponse>(
+        this.pageInfo.STORE_SEARCHATTACHMENTS(query, folderId),
+      );
+
+      return response
+        .then((res) => {
+          const content = res.data?.body?.content as
+            | { data: AttachmentType[]; total?: number }
+            | AttachmentType[]
+            | undefined;
+
+          if (Array.isArray(content)) {
+            this.attachments = content;
+            this.total = content.length;
+            return this.attachments;
+          }
+
+          this.attachments = content?.data ?? null;
+          this.total = content?.total ?? this.attachments?.length ?? 0;
           return this.attachments ?? null;
         })
         .catch((err) => {

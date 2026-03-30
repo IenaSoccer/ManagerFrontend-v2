@@ -13,31 +13,29 @@
           <div class="space-y-3">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <span class="text-sm font-semibold text-gray-600">
-                Totale: {{ filteredAttachments.length }} / {{ attachmentsData.total }} allegati
+                Totale: {{ attachmentsCount }} allegati
               </span>
               <div class="flex items-center gap-2">
                 <q-btn v-if="!dialog.singleSelectionMode"
-                  :label="isAllFilteredSelected ? 'Deseleziona tutti' : 'Seleziona tutti'" color="primary" flat dense
-                  :disable="filteredAttachments.length === 0" @click="toggleSelectAllFiltered" />
+                  :icon="isAllFilteredSelected ? 'check_box' : 'check_box_outline_blank'" color="primary" flat dense
+                  :disable="visibleAttachments.length === 0" @click="toggleSelectAllFiltered" />
                 <q-pagination v-model="pagination.currentPage" :max="maxPages" direction-links boundary-links size="sm"
                   color="blue" />
               </div>
             </div>
-            <q-input v-model="filters.searchTitle" dense outlined clearable label="Cerca per titolo"
-              placeholder="Scrivi il titolo dell'allegato">
+            <q-input v-model="filters.searchTitle" dense outlined clearable label="Cerca per parole chiave"
+              placeholder="Scrivi il nome/descrizione dell'allegato..." class="rounded-lg">
               <template #append>
                 <q-icon name="search" />
               </template>
             </q-input>
           </div>
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            <div v-for="attachment in paginatedAttachments" :key="attachment.id" :class="[
+            <div v-for="attachment in visibleAttachments" :key="attachment.id" :class="[
               'relative group transition-all duration-200 rounded-xl overflow-hidden',
               'border border-gray-200 shadow-lg h-64',
               'hover:shadow-xl hover:border-blue-400',
-              isAttachmentSelected(attachment.id)
-                ? 'ring-2 ring-blue-400'
-                : '',
+              isAttachmentSelected(attachment.id) ? 'ring-2 ring-blue-400' : '',
             ]">
               <img :src="computedThumbnail(attachment.data.path)" alt="Attachment Thumbnail"
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
@@ -56,9 +54,8 @@
                   @click="startEdit(attachment.id, 'name', attachment.data.name)">
                   {{ attachment.data.name }}
                 </span>
-                <div v-if="
-                  editing.editingId === attachment.id && editing.editingField === 'description'
-                " class="w-full">
+                <div v-if="editing.editingId === attachment.id && editing.editingField === 'description'"
+                  class="w-full">
                   <input v-model="editing.editingValue" type="text" class="w-full px-2 py-1 rounded text-xs text-black"
                     @keyup.enter="saveEdit(attachment.id, 'description')" @blur="saveEdit(attachment.id, 'description')"
                     autofocus />
@@ -133,11 +130,12 @@
         <q-btn label="Carica" color="positive" dense
           :disable="upload.attachmentPreviews.length === 0 || !upload.newAttachment.name.trim()"
           @click="uploadAttachment" />
-        <span v-if="upload.attachmentPreviews.length > 0" class="text-sm text-gray-600">{{
-          upload.attachmentPreviews.length }} file(s) selezionato(i)</span>
+        <span v-if="upload.attachmentPreviews.length > 0" class="text-sm text-gray-600">
+          {{ upload.attachmentPreviews.length }} file(s) selezionato(i)
+        </span>
         <q-separator vertical />
-        <q-btn label="Elimina Selezionati" color="negative" flat dense
-          :disable="attachmentsData.selectedIds.length === 0" @click="deleteSelected" />
+        <q-btn label="Elimina Selezionati" color="negative" flat dense :disable="!hasSelection"
+          @click="deleteSelected" />
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -156,37 +154,31 @@ const attachmentsStore = globals.stores.attachments;
 
 const bus = inject<EventBus>('bus');
 
-// Dialog State
 const dialog = ref({
   isVisible: false,
   isLoaded: true,
   singleSelectionMode: false,
 });
 
-// Attachments Data
 const attachmentsData = ref({
   attachments: [] as AttachmentType[],
   total: 0,
   selectedIds: [] as string[] | string,
-  selectedAttachments: [] as AttachmentType[],
   folderId: '',
 });
 
-// File Upload
 const upload = ref({
   attachmentFiles: [] as File[],
   attachmentPreviews: [] as { file: File; preview: string }[],
   newAttachment: { name: '', description: '' } as UpdateAttachmentPayload,
 });
 
-// Editing State
 const editing = ref({
   editingId: null as string | null,
   editingField: null as 'name' | 'description' | null,
   editingValue: '',
 });
 
-// Pagination
 const pagination = ref({
   currentPage: 1,
   itemsPerPage: 8,
@@ -196,40 +188,39 @@ const filters = ref({
   searchTitle: '',
 });
 
-const filteredAttachments = computed(() => {
-  const query = filters.value.searchTitle.trim().toLowerCase();
-  if (!query) {
+const hasSearchQuery = computed(() => filters.value.searchTitle.trim().length > 0);
+const selectedIdsList = computed(() => {
+  if (Array.isArray(attachmentsData.value.selectedIds)) {
+    return attachmentsData.value.selectedIds;
+  }
+
+  return attachmentsData.value.selectedIds ? [attachmentsData.value.selectedIds] : [];
+});
+const attachmentsCount = computed(() =>
+  hasSearchQuery.value ? attachmentsData.value.attachments.length : attachmentsData.value.total,
+);
+const maxPages = computed(() =>
+  Math.max(1, Math.ceil(attachmentsCount.value / pagination.value.itemsPerPage)),
+);
+const visibleAttachments = computed(() => {
+  if (!hasSearchQuery.value) {
     return attachmentsData.value.attachments;
   }
 
-  return attachmentsData.value.attachments.filter((attachment) => {
-    const name = attachment.data.name ?? '';
-    return name.toLowerCase().includes(query);
-  });
-});
-
-const maxPages = computed(() =>
-  Math.max(1, Math.ceil(filteredAttachments.value.length / pagination.value.itemsPerPage)),
-);
-const paginatedAttachments = computed(() => {
   const start = (pagination.value.currentPage - 1) * pagination.value.itemsPerPage;
-  return filteredAttachments.value.slice(start, start + pagination.value.itemsPerPage);
+  return attachmentsData.value.attachments.slice(start, start + pagination.value.itemsPerPage);
 });
+const hasSelection = computed(() => selectedIdsList.value.length > 0);
 
-const isAttachmentSelected = (attachmentId: string) => {
-  if (Array.isArray(attachmentsData.value.selectedIds)) {
-    return attachmentsData.value.selectedIds.includes(attachmentId);
-  }
-  return attachmentsData.value.selectedIds === attachmentId;
-};
+const isAttachmentSelected = (attachmentId: string) => selectedIdsList.value.includes(attachmentId);
 
 const isAllFilteredSelected = computed(() => {
   if (dialog.value.singleSelectionMode || !Array.isArray(attachmentsData.value.selectedIds)) {
     return false;
   }
 
-  const filteredIds = filteredAttachments.value.map((attachment) => attachment.id);
-  return filteredIds.length > 0 && filteredIds.every((id) => attachmentsData.value.selectedIds.includes(id));
+  const visibleIds = visibleAttachments.value.map((attachment) => attachment.id);
+  return visibleIds.length > 0 && visibleIds.every((id) => attachmentsData.value.selectedIds.includes(id));
 });
 
 const toggleSelectAllFiltered = () => {
@@ -241,41 +232,52 @@ const toggleSelectAllFiltered = () => {
     attachmentsData.value.selectedIds = [];
   }
 
-  const filteredIds = filteredAttachments.value.map((attachment) => attachment.id);
+  const visibleIds = visibleAttachments.value.map((attachment) => attachment.id);
   if (isAllFilteredSelected.value) {
     attachmentsData.value.selectedIds = attachmentsData.value.selectedIds.filter(
-      (id) => !filteredIds.includes(id),
+      (id) => !visibleIds.includes(id),
     );
     return;
   }
 
   attachmentsData.value.selectedIds = Array.from(
-    new Set([...attachmentsData.value.selectedIds, ...filteredIds]),
+    new Set([...attachmentsData.value.selectedIds, ...visibleIds]),
   );
 };
 
-watch(pagination.value, () => {
-  getAttachments(
-    attachmentsData.value.folderId,
-    pagination.value.itemsPerPage,
-    pagination.value.currentPage,
-  ).catch((error: ServerResponse) => {
-    handleStatus(error, bus!);
-  });
-});
+let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
-watch(
-  () => filters.value.searchTitle,
-  () => {
-    pagination.value.currentPage = 1;
-  },
-);
+const setLoadedState = (isLoaded: boolean) => {
+  dialog.value.isLoaded = isLoaded;
+};
 
-watch(maxPages, (newMaxPages) => {
-  if (pagination.value.currentPage > newMaxPages) {
-    pagination.value.currentPage = newMaxPages;
+const loadAttachments = async () => {
+  const folderId = attachmentsData.value.folderId;
+  if (!folderId) {
+    attachmentsData.value.attachments = [];
+    attachmentsData.value.total = 0;
+    return;
   }
-});
+
+  setLoadedState(false);
+
+  try {
+    const response = hasSearchQuery.value
+      ? await attachmentsStore.search(filters.value.searchTitle.trim(), folderId)
+      : await attachmentsStore.getAttachmentsByFolderId(
+        folderId,
+        pagination.value.itemsPerPage,
+        pagination.value.currentPage,
+      );
+
+    attachmentsData.value.attachments = response ?? [];
+    attachmentsData.value.total = attachmentsStore.total;
+  } catch (error) {
+    handleStatus(error as ServerResponse | ValidationError, bus!);
+  } finally {
+    setLoadedState(true);
+  }
+};
 
 const resetUploadForm = () => {
   upload.value.attachmentFiles = [];
@@ -299,7 +301,9 @@ const handleDrop = (event: DragEvent) => {
 };
 
 const uploadAttachment = async () => {
-  if (upload.value.attachmentPreviews.length === 0) return;
+  if (upload.value.attachmentPreviews.length === 0) {
+    return;
+  }
 
   for (const { preview } of upload.value.attachmentPreviews) {
     await attachmentsStore
@@ -317,24 +321,18 @@ const uploadAttachment = async () => {
     title: `${upload.value.attachmentPreviews.length} allegato(i) caricato(i) con successo!`,
     button: 'Chiudi',
   });
-  getAttachments(
-    attachmentsData.value.folderId,
-    pagination.value.itemsPerPage,
-    pagination.value.currentPage,
-  ).catch((error: ServerResponse | ValidationError) => {
-    handleStatus(error, bus!);
-  });
+  await loadAttachments();
   resetUploadForm();
 };
 
 const processFile = (file: File) => {
-  if (!upload.value.attachmentFiles.find((f) => f.name === file.name && f.size === file.size)) {
+  if (!upload.value.attachmentFiles.find((existingFile) => existingFile.name === file.name && existingFile.size === file.size)) {
     upload.value.attachmentFiles.push(file);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = (event) => {
       upload.value.attachmentPreviews.push({
         file,
-        preview: e.target?.result as string,
+        preview: event.target?.result as string,
       });
     };
     reader.readAsDataURL(file);
@@ -358,50 +356,10 @@ const onDialogHide = () => {
   });
 };
 
-const getAttachments = async (folderId?: string, per_page?: number, page: number = 1) => {
-  dialog.value.isLoaded = false;
-  await attachmentsStore
-    .getAttachmentsByFolderId(folderId!, per_page, page)
-    .then((res) => {
-      attachmentsData.value.attachments = attachmentsData.value.attachments
-        .concat(res ?? [])
-        .reduce((unique: AttachmentType[], item) => {
-          return unique.some((a) => a.id === item.id) ? unique : [...unique, item];
-        }, []);
-      attachmentsData.value.total = attachmentsStore.total;
-      dialog.value.isLoaded = true;
-    })
-    .catch((error: ServerResponse) => {
-      handleStatus(error, bus!);
-    });
-};
-
 const startEdit = (attachmentId: string, field: 'name' | 'description', currentValue: string) => {
   editing.value.editingId = attachmentId;
   editing.value.editingField = field;
   editing.value.editingValue = currentValue;
-};
-
-const saveEdit = async (attachmentId: string, field: 'name' | 'description') => {
-  if (editing.value.editingValue.trim()) {
-    const attachment = attachmentsData.value.attachments.find((a) => a.id === attachmentId);
-    if (attachment) {
-      const payload: UpdateAttachmentPayload = {
-        name: field === 'name' ? editing.value.editingValue : attachment.data.name,
-        description:
-          field === 'description' ? editing.value.editingValue : attachment.data.description,
-      };
-      await updateAttachment(attachmentId, payload);
-      if (field === 'name') {
-        attachment.data.name = editing.value.editingValue;
-      } else {
-        attachment.data.description = editing.value.editingValue;
-      }
-    }
-  }
-  editing.value.editingId = null;
-  editing.value.editingField = null;
-  editing.value.editingValue = '';
 };
 
 const updateAttachment = async (attachmentId: string, attachment: UpdateAttachmentPayload) => {
@@ -415,37 +373,120 @@ const updateAttachment = async (attachmentId: string, attachment: UpdateAttachme
     });
 };
 
-const deleteAttachment = async (folderId: string, attachmentId: string) => {
-  await attachmentsStore
-    .deleteAttachmentById(folderId, attachmentId)
-    .then(() => {
-      attachmentsData.value.attachments = attachmentsData.value.attachments.filter(
-        (a) => a.id !== attachmentId,
-      );
+const saveEdit = async (attachmentId: string, field: 'name' | 'description') => {
+  if (editing.value.editingValue.trim()) {
+    const attachment = attachmentsData.value.attachments.find((item) => item.id === attachmentId);
+    if (attachment) {
+      const payload: UpdateAttachmentPayload = {
+        name: field === 'name' ? editing.value.editingValue : attachment.data.name,
+        description: field === 'description' ? editing.value.editingValue : attachment.data.description,
+      };
+      await updateAttachment(attachmentId, payload);
 
-      if (Array.isArray(attachmentsData.value.selectedIds)) {
-        attachmentsData.value.selectedIds = attachmentsData.value.selectedIds.filter(
-          (id) => id !== attachmentId,
-        );
-      } else if (attachmentsData.value.selectedIds === attachmentId) {
-        attachmentsData.value.selectedIds = '';
+      if (field === 'name') {
+        attachment.data.name = editing.value.editingValue;
+      } else {
+        attachment.data.description = editing.value.editingValue;
       }
-    })
-    .catch((error: ServerResponse) => {
-      handleStatus(error, bus!);
-    });
+    }
+  }
+
+  editing.value.editingId = null;
+  editing.value.editingField = null;
+  editing.value.editingValue = '';
 };
 
-const deleteSelected = async () => {
-  if (!Array.isArray(attachmentsData.value.selectedIds)) {
+const reloadAfterDelete = async () => {
+  if (!hasSearchQuery.value && attachmentsData.value.attachments.length === 0 && pagination.value.currentPage > 1) {
+    pagination.value.currentPage -= 1;
     return;
   }
 
-  for (const id of attachmentsData.value.selectedIds) {
-    await deleteAttachment(attachmentsData.value.attachments.find((a) => a.id === id)!.fid, id);
-  }
-  attachmentsData.value.selectedIds = [];
+  await loadAttachments();
 };
+
+const deleteAttachment = async (folderId: string, attachmentId: string) => {
+  try {
+    await attachmentsStore.deleteAttachmentById(folderId, attachmentId);
+
+    attachmentsData.value.attachments = attachmentsData.value.attachments.filter(
+      (attachment) => attachment.id !== attachmentId,
+    );
+    attachmentsData.value.total = Math.max(0, attachmentsData.value.total - 1);
+
+    if (Array.isArray(attachmentsData.value.selectedIds)) {
+      attachmentsData.value.selectedIds = attachmentsData.value.selectedIds.filter(
+        (selectedId) => selectedId !== attachmentId,
+      );
+    } else if (attachmentsData.value.selectedIds === attachmentId) {
+      attachmentsData.value.selectedIds = '';
+    }
+
+    await reloadAfterDelete();
+  } catch (error) {
+    handleStatus(error as ServerResponse, bus!);
+  }
+};
+
+const deleteSelected = async () => {
+  if (!Array.isArray(attachmentsData.value.selectedIds) || attachmentsData.value.selectedIds.length === 0) {
+    return;
+  }
+
+  const selectedIds = [...attachmentsData.value.selectedIds];
+
+  try {
+    await Promise.all(
+      selectedIds.map((id) => attachmentsStore.deleteAttachmentById(attachmentsData.value.folderId, id)),
+    );
+
+    attachmentsData.value.attachments = attachmentsData.value.attachments.filter(
+      (attachment) => !selectedIds.includes(attachment.id),
+    );
+    attachmentsData.value.total = Math.max(0, attachmentsData.value.total - selectedIds.length);
+    attachmentsData.value.selectedIds = [];
+
+    await reloadAfterDelete();
+  } catch (error) {
+    handleStatus(error as ServerResponse, bus!);
+  }
+};
+
+watch(
+  () => pagination.value.currentPage,
+  () => {
+    if (!dialog.value.isVisible || hasSearchQuery.value) {
+      return;
+    }
+
+    void loadAttachments();
+  },
+);
+
+watch(
+  () => filters.value.searchTitle,
+  () => {
+    pagination.value.currentPage = 1;
+
+    if (!dialog.value.isVisible || !attachmentsData.value.folderId) {
+      return;
+    }
+
+    if (searchDebounce) {
+      clearTimeout(searchDebounce);
+    }
+
+    searchDebounce = setTimeout(() => {
+      void loadAttachments();
+    }, 350);
+  },
+);
+
+watch(maxPages, (newMaxPages) => {
+  if (pagination.value.currentPage > newMaxPages) {
+    pagination.value.currentPage = newMaxPages;
+  }
+});
 
 onMounted(() => {
   bus?.on(
@@ -464,18 +505,17 @@ onMounted(() => {
       attachmentsData.value.selectedIds = newSelectedAttachments;
       filters.value.searchTitle = '';
       pagination.value.currentPage = 1;
-      getAttachments(attachmentsData.value.folderId, pagination.value.itemsPerPage).catch(
-        (error: ServerResponse) => {
-          handleStatus(error, bus);
-        },
-      );
-
       dialog.value.isVisible = true;
+      void loadAttachments();
     },
   );
 });
 
 onBeforeUnmount(() => {
+  if (searchDebounce) {
+    clearTimeout(searchDebounce);
+  }
+
   bus?.off('open:archive');
 });
 </script>
