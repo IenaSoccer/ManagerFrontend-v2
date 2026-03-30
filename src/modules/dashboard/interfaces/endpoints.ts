@@ -31,7 +31,7 @@ type ApiResourceEndpoints = {
 
 type ApiAttachmentsEndpoints = {
   STORE_GETATTACHMENTS: (folderId: string, per_page?: number, page?: number) => string;
-  STORE_SEARCHATTACHMENTS: (query: string, folderId: string) => string;
+  STORE_SEARCHATTACHMENTS: (query: string, folderId: string, per_page: number, page: number) => string;
   STORE_ADDATTACHMENT: (folderId: string) => string;
   STORE_DELETEATTACHMENT: (folderId: string, attachmentId: string) => string;
   STORE_EDITATTACHMENT: (attachmentId: string) => string;

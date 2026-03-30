@@ -21,10 +21,10 @@ export const useAttachmentsStore = defineStore('AttachmentsStore', {
     pageInfo(): ApiAttachmentsEndpoints {
       const base = String(process.env.API_URL ?? '#');
       return {
-        STORE_GETATTACHMENTS: (folderId: string, per_page?: number, page: number = 1) =>
-          `${base}/attachments/${folderId}?${per_page ? `per_page=${per_page}` : ''}${page ? `&page=${page}` : ''}`,
-        STORE_SEARCHATTACHMENTS: (query: string, folderId: string) =>
-          `${base}/attachments/${folderId}/search?query=${encodeURIComponent(query)}`,
+        STORE_GETATTACHMENTS: (folderId: string, per_page: number = 10, page: number = 1) =>
+          `${base}/attachments/${folderId}?${`per_page=${per_page}`}${`&page=${page}`}`,
+        STORE_SEARCHATTACHMENTS: (query: string, folderId: string, per_page: number = 10, page: number = 1) =>
+          `${base}/attachments/${folderId}/search?query=${encodeURIComponent(query)}${`&per_page=${per_page}`}${`&page=${page}`}`,
         STORE_ADDATTACHMENT: (folderId: string) => `${base}/attachments/${folderId}`,
         STORE_DELETEATTACHMENT: (folderId: string, attachmentId: string) =>
           `${base}/attachments/${folderId}/${attachmentId}`,
@@ -36,7 +36,7 @@ export const useAttachmentsStore = defineStore('AttachmentsStore', {
   actions: {
     async getAttachmentsByFolderId(
       folderId: string,
-      per_page?: number,
+      per_page: number = 10,
       page: number = 1,
     ): Promise<AttachmentType[] | null> {
       const response = axios.get<ServerResponse>(
@@ -57,9 +57,9 @@ export const useAttachmentsStore = defineStore('AttachmentsStore', {
           throw err;
         });
     },
-    async search(query: string, folderId: string): Promise<AttachmentType[] | null> {
+    async search(query: string, folderId: string, per_page: number = 10, page: number = 1): Promise<AttachmentType[] | null> {
       const response = axios.get<ServerResponse>(
-        this.pageInfo.STORE_SEARCHATTACHMENTS(query, folderId),
+        this.pageInfo.STORE_SEARCHATTACHMENTS(query, folderId, per_page, page),
       );
 
       return response

@@ -181,7 +181,7 @@ const editing = ref({
 
 const pagination = ref({
   currentPage: 1,
-  itemsPerPage: 8,
+  itemsPerPage: 10,
 });
 
 const filters = ref({
@@ -197,18 +197,17 @@ const selectedIdsList = computed(() => {
   return attachmentsData.value.selectedIds ? [attachmentsData.value.selectedIds] : [];
 });
 const attachmentsCount = computed(() =>
-  hasSearchQuery.value ? attachmentsData.value.attachments.length : attachmentsData.value.total,
+  attachmentsData.value.total
 );
 const maxPages = computed(() =>
-  Math.max(1, Math.ceil(attachmentsCount.value / pagination.value.itemsPerPage)),
+  Math.max(1, Math.ceil(Math.max(attachmentsCount.value, attachmentsData.value.total) / pagination.value.itemsPerPage)),
 );
 const visibleAttachments = computed(() => {
   if (!hasSearchQuery.value) {
     return attachmentsData.value.attachments;
   }
 
-  const start = (pagination.value.currentPage - 1) * pagination.value.itemsPerPage;
-  return attachmentsData.value.attachments.slice(start, start + pagination.value.itemsPerPage);
+  return attachmentsData.value.attachments.slice(0, pagination.value.itemsPerPage);
 });
 const hasSelection = computed(() => selectedIdsList.value.length > 0);
 
@@ -263,7 +262,7 @@ const loadAttachments = async () => {
 
   try {
     const response = hasSearchQuery.value
-      ? await attachmentsStore.search(filters.value.searchTitle.trim(), folderId)
+      ? await attachmentsStore.search(filters.value.searchTitle.trim(), folderId, pagination.value.itemsPerPage, pagination.value.currentPage)
       : await attachmentsStore.getAttachmentsByFolderId(
         folderId,
         pagination.value.itemsPerPage,
@@ -455,7 +454,7 @@ const deleteSelected = async () => {
 watch(
   () => pagination.value.currentPage,
   () => {
-    if (!dialog.value.isVisible || hasSearchQuery.value) {
+    if (!dialog.value.isVisible) {
       return;
     }
 
