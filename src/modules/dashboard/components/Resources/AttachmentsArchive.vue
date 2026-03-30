@@ -10,19 +10,32 @@
       <!-- Attachments Grid with Pagination -->
       <q-card-section>
         <div v-if="dialog.isLoaded" class="space-y-4">
-          <div class="flex justify-between items-center">
-            <span class="text-sm font-semibold text-gray-600">
-              Totale: {{ attachmentsData.total }} allegati
-            </span>
-            <q-pagination v-model="pagination.currentPage" :max="maxPages" direction-links boundary-links size="sm"
-              color="blue" />
+          <div class="space-y-3">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <span class="text-sm font-semibold text-gray-600">
+                Totale: {{ filteredAttachments.length }} / {{ attachmentsData.total }} allegati
+              </span>
+              <div class="flex items-center gap-2">
+                <q-btn v-if="!dialog.singleSelectionMode"
+                  :label="isAllFilteredSelected ? 'Deseleziona tutti' : 'Seleziona tutti'" color="primary" flat dense
+                  :disable="filteredAttachments.length === 0" @click="toggleSelectAllFiltered" />
+                <q-pagination v-model="pagination.currentPage" :max="maxPages" direction-links boundary-links size="sm"
+                  color="blue" />
+              </div>
+            </div>
+            <q-input v-model="filters.searchTitle" dense outlined clearable label="Cerca per titolo"
+              placeholder="Scrivi il titolo dell'allegato">
+              <template #append>
+                <q-icon name="search" />
+              </template>
+            </q-input>
           </div>
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             <div v-for="attachment in paginatedAttachments" :key="attachment.id" :class="[
               'relative group transition-all duration-200 rounded-xl overflow-hidden',
               'border border-gray-200 shadow-lg h-64',
               'hover:shadow-xl hover:border-blue-400',
-              attachmentsData.selectedAttachments.some((a) => a.id === attachment.id)
+              isAttachmentSelected(attachment.id)
                 ? 'ring-2 ring-blue-400'
                 : '',
             ]">
@@ -60,7 +73,7 @@
                 <q-btn icon="delete" flat dense size="sm" color="negative" class="bg-red-500/90 hover:bg-red-600"
                   @click="deleteAttachment(attachmentsData.folderId, attachment.id)" />
               </div>
-              <div v-if="attachmentsData.selectedIds.includes(attachment.id)"
+              <div v-if="isAttachmentSelected(attachment.id)"
                 class="absolute top-2 right-2 bg-blue-400 text-white text-xs px-2 py-1 rounded shadow-lg font-bold z-10">
                 Selezionato
               </div>
@@ -179,13 +192,67 @@ const pagination = ref({
   itemsPerPage: 8,
 });
 
+const filters = ref({
+  searchTitle: '',
+});
+
+const filteredAttachments = computed(() => {
+  const query = filters.value.searchTitle.trim().toLowerCase();
+  if (!query) {
+    return attachmentsData.value.attachments;
+  }
+
+  return attachmentsData.value.attachments.filter((attachment) => {
+    const name = attachment.data.name ?? '';
+    return name.toLowerCase().includes(query);
+  });
+});
+
 const maxPages = computed(() =>
-  Math.ceil(attachmentsData.value.total / pagination.value.itemsPerPage),
+  Math.max(1, Math.ceil(filteredAttachments.value.length / pagination.value.itemsPerPage)),
 );
 const paginatedAttachments = computed(() => {
   const start = (pagination.value.currentPage - 1) * pagination.value.itemsPerPage;
-  return attachmentsData.value.attachments.slice(start, start + pagination.value.itemsPerPage);
+  return filteredAttachments.value.slice(start, start + pagination.value.itemsPerPage);
 });
+
+const isAttachmentSelected = (attachmentId: string) => {
+  if (Array.isArray(attachmentsData.value.selectedIds)) {
+    return attachmentsData.value.selectedIds.includes(attachmentId);
+  }
+  return attachmentsData.value.selectedIds === attachmentId;
+};
+
+const isAllFilteredSelected = computed(() => {
+  if (dialog.value.singleSelectionMode || !Array.isArray(attachmentsData.value.selectedIds)) {
+    return false;
+  }
+
+  const filteredIds = filteredAttachments.value.map((attachment) => attachment.id);
+  return filteredIds.length > 0 && filteredIds.every((id) => attachmentsData.value.selectedIds.includes(id));
+});
+
+const toggleSelectAllFiltered = () => {
+  if (dialog.value.singleSelectionMode) {
+    return;
+  }
+
+  if (!Array.isArray(attachmentsData.value.selectedIds)) {
+    attachmentsData.value.selectedIds = [];
+  }
+
+  const filteredIds = filteredAttachments.value.map((attachment) => attachment.id);
+  if (isAllFilteredSelected.value) {
+    attachmentsData.value.selectedIds = attachmentsData.value.selectedIds.filter(
+      (id) => !filteredIds.includes(id),
+    );
+    return;
+  }
+
+  attachmentsData.value.selectedIds = Array.from(
+    new Set([...attachmentsData.value.selectedIds, ...filteredIds]),
+  );
+};
 
 watch(pagination.value, () => {
   getAttachments(
@@ -195,6 +262,19 @@ watch(pagination.value, () => {
   ).catch((error: ServerResponse) => {
     handleStatus(error, bus!);
   });
+});
+
+watch(
+  () => filters.value.searchTitle,
+  () => {
+    pagination.value.currentPage = 1;
+  },
+);
+
+watch(maxPages, (newMaxPages) => {
+  if (pagination.value.currentPage > newMaxPages) {
+    pagination.value.currentPage = newMaxPages;
+  }
 });
 
 const resetUploadForm = () => {
@@ -357,6 +437,10 @@ const deleteAttachment = async (folderId: string, attachmentId: string) => {
 };
 
 const deleteSelected = async () => {
+  if (!Array.isArray(attachmentsData.value.selectedIds)) {
+    return;
+  }
+
   for (const id of attachmentsData.value.selectedIds) {
     await deleteAttachment(attachmentsData.value.attachments.find((a) => a.id === id)!.fid, id);
   }
@@ -378,6 +462,8 @@ onMounted(() => {
       attachmentsData.value.folderId = newFolderId;
       dialog.value.singleSelectionMode = newSingleSelectionMode;
       attachmentsData.value.selectedIds = newSelectedAttachments;
+      filters.value.searchTitle = '';
+      pagination.value.currentPage = 1;
       getAttachments(attachmentsData.value.folderId, pagination.value.itemsPerPage).catch(
         (error: ServerResponse) => {
           handleStatus(error, bus);
