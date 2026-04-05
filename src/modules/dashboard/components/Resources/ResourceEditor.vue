@@ -97,7 +97,7 @@
           <span class="text-xl">⚙️</span> Proprietà aggiuntive
         </label>
         <TransitionGroup name="property" tag="div" class="space-y-3">
-          <div v-for="(, k, i) in resource!.attributes.custom" :key="i" class="flex gap-3">
+          <div v-for="(v, k, i) in resource!.attributes.custom" :key="i" class="flex gap-3">
             <input :value="k" @input="updatePropertyKey(k, ($event.target as HTMLInputElement).value)" type="text" placeholder="Chiave"
               class="flex-1 px-3 py-2.5 border-2 border-gray-200 rounded-xl transition-all duration-300 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100" />
             <input v-model="resource!.attributes.custom[k]" type="text" placeholder="Valore"
