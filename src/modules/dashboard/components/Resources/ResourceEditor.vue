@@ -97,21 +97,21 @@
           <span class="text-xl">⚙️</span> Proprietà aggiuntive
         </label>
         <TransitionGroup name="property" tag="div" class="space-y-3">
-          <div v-for="(v, k) in { 'K1': 'V1', ...resource!.attributes.custom }" :key="k" class="flex gap-3">
-            <input :value="k" type="text" placeholder="Chiave"
+          <div v-for="(, k, i) in resource!.attributes.custom" :key="i" class="flex gap-3">
+            <input :value="k" @input="updatePropertyKey(k, ($event.target as HTMLInputElement).value)" type="text" placeholder="Chiave"
               class="flex-1 px-3 py-2.5 border-2 border-gray-200 rounded-xl transition-all duration-300 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100" />
-            <input :value="v" type="text" placeholder="Valore"
+            <input v-model="resource!.attributes.custom[k]" type="text" placeholder="Valore"
               class="flex-1 px-3 py-2.5 border-2 border-gray-200 rounded-xl transition-all duration-300 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100" />
             <button type="button" @click="removeProperty(k)"
               class="bg-red-50 border-2 border-red-200 text-red-600 rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-300 text-xl hover:bg-red-500 hover:text-white hover:border-red-600 hover:scale-105">
               🗑️
             </button>
-            <button type="button" @click="addProperty(k, v)"
-              class="mt-3 bg-gradient-to-r from-green-500 to-green-600 text-white border-0 rounded-xl px-6 py-3 font-semibold cursor-pointer transition-all duration-300 flex items-center gap-2 shadow-lg shadow-green-500/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-green-500/40">
-              <span class="text-2xl font-bold">+</span> Aggiungi
-            </button>
           </div>
         </TransitionGroup>
+        <button type="button" @click="addProperty(`K${Object.keys(resource!.attributes.custom).length + 1}`,'V')"
+          class="mt-3 bg-gradient-to-r from-green-500 to-green-600 text-white border-0 rounded-xl px-6 py-3 font-semibold cursor-pointer transition-all duration-300 flex items-center gap-2 shadow-lg shadow-green-500/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-green-500/40">
+          <span class="text-2xl font-bold">+</span>
+        </button>
       </div>
 
       <div class="flex gap-4 mt-8 pt-8 border-t-2 border-gray-200 animate-fade-in opacity-0">
@@ -179,6 +179,10 @@ onMounted(() => {
 
     isEditing.value = true;
     resource.value = res;
+    if (!resource.value.attributes.custom) {
+      resource.value.attributes.custom = {};
+    }
+
     isHtmlSourceMode.value = false;
     syncEditorContentFromResource();
 
@@ -252,7 +256,20 @@ const removeTag = (index: number) => {
 };
 
 const addProperty = (key: string, value: string) => {
-  resource.value!.attributes.custom[key] = value;
+    if (!resource.value!.attributes.custom) {
+      resource.value!.attributes.custom = {};
+    }
+
+    resource.value!.attributes.custom[key] = value;
+};
+
+const updatePropertyKey = (oldKey: string, newKey: string) => {
+  const custom = resource.value?.attributes.custom;
+  if (!custom || oldKey === newKey) return;
+
+  const currentValue = custom[oldKey] ?? '';
+  custom[newKey] = currentValue;
+  delete custom[oldKey];
 };
 
 const removeProperty = (key: string) => {
