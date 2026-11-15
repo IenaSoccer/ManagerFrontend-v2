@@ -97,13 +97,13 @@ const bus = inject<EventBus>('bus');
 
 const getFolders = async () => {
   await folderStore!.getFolderList().catch((err: ServerResponse) => {
-    handleStatus(err, bus!);
+    handleStatus(err, bus);
   });
 };
 
 const getMappings = async () => {
   await mappingsStore!.getMappings().catch((err: ServerResponse) => {
-    handleStatus(err, bus!);
+    handleStatus(err, bus);
   });
 };
 
@@ -155,7 +155,7 @@ const handleSubmit = () => {
       bus?.emit('success:general', { title: 'Mappatura salvata con successo!', button: 'Chiudi' });
     })
     .catch((err: ServerResponse) => {
-      handleStatus(err, bus!);
+      handleStatus(err, bus);
     });
 };
 </script>

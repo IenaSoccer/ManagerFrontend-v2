@@ -3,6 +3,7 @@
     v-model="sidebarOpen"
     side="left"
     bordered
+    show-if-above
     :width="250"
     :breakpoint="1024"
     class="bg-white select-none roboto"
@@ -12,6 +13,13 @@
         <q-item-label header class="text-weight-bold text-primary q-py-md">
           Navigazione
         </q-item-label>
+
+        <q-item clickable v-ripple to="/dashboard" exact active-class="bg-primary text-white">
+          <q-item-section avatar>
+            <q-icon name="dashboard" color="primary" class="rounded-full bg-white p-2" />
+          </q-item-section>
+          <q-item-section>Panoramica</q-item-section>
+        </q-item>
 
         <q-item clickable v-ripple to="/dashboard/account" active-class="bg-blue text-white">
           <q-item-section avatar>

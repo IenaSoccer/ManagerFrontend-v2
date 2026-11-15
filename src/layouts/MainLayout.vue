@@ -2,7 +2,7 @@
   <q-layout view="lHh Lpr lFf">
     <q-header elevated class="bg-primary text-white z-20">
       <q-toolbar>
-        <q-btn flat dense round icon="menu" @click="toggleSidebar" class="q-mr-md" />
+        <q-btn flat dense round icon="menu" aria-label="Apri menu di navigazione" @click="toggleSidebar" class="q-mr-md" />
         <TopHeader></TopHeader>
       </q-toolbar>
     </q-header>

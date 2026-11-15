@@ -11,13 +11,42 @@ interface State {
   activeSessions: SessionType[];
 }
 
+const AUTH_STORAGE_KEY = 'iena-auth';
+
+const readPersistedAuth = (): Pick<State, 'currentUser' | 'apiToken'> => {
+  if (typeof window === 'undefined') return { currentUser: null, apiToken: null };
+  const localSerialized = localStorage.getItem(AUTH_STORAGE_KEY) ?? localStorage.getItem('AuthStore');
+  const sessionSerialized = sessionStorage.getItem(AUTH_STORAGE_KEY) ?? sessionStorage.getItem('AuthStore');
+  const serialized = localSerialized ?? sessionSerialized;
+  if (!serialized) return { currentUser: null, apiToken: null };
+
+  try {
+    const parsed = JSON.parse(serialized) as Partial<State>;
+    const normalized = {
+      currentUser: parsed.currentUser ?? null,
+      apiToken: parsed.apiToken ?? null,
+    };
+    if (!localStorage.getItem(AUTH_STORAGE_KEY) && !sessionStorage.getItem(AUTH_STORAGE_KEY)) {
+      (localSerialized ? localStorage : sessionStorage).setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify(normalized),
+      );
+    }
+    localStorage.removeItem('AuthStore');
+    sessionStorage.removeItem('AuthStore');
+    return normalized;
+  } catch {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    return { currentUser: null, apiToken: null };
+  }
+};
+
 export const useAuthStore = defineStore('AuthStore', {
   state: (): State => ({
-    currentUser: null,
-    apiToken: null,
+    ...readPersistedAuth(),
     activeSessions: [],
   }),
-  persist: true,
   getters: {
     pageInfo(): ApiAuthEndpoints {
       const base = String(process.env.API_URL ?? '#');
@@ -37,13 +66,38 @@ export const useAuthStore = defineStore('AuthStore', {
   },
 
   actions: {
+    persistSession(remember?: boolean): void {
+      if (typeof window === 'undefined') return;
+      const shouldRemember = remember ?? localStorage.getItem(AUTH_STORAGE_KEY) !== null;
+      const storage = shouldRemember ? localStorage : sessionStorage;
+      const otherStorage = shouldRemember ? sessionStorage : localStorage;
+      storage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify({ currentUser: this.currentUser, apiToken: this.apiToken }),
+      );
+      otherStorage.removeItem(AUTH_STORAGE_KEY);
+    },
+    clearSession(): void {
+      this.currentUser = null;
+      this.apiToken = null;
+      this.activeSessions = [];
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        sessionStorage.removeItem(AUTH_STORAGE_KEY);
+        localStorage.removeItem('AuthStore');
+        sessionStorage.removeItem('AuthStore');
+      }
+    },
     async refreshCurrentUser(): Promise<UserType | null> {
       const response = axios.get<ServerResponse>(this.pageInfo.STORE_EXTRA_ME);
 
       return response
         .then((res) => {
           const content = res.data?.body?.content as UserType | undefined;
-          if (content) this.currentUser = content;
+          if (content) {
+            this.currentUser = content;
+            this.persistSession();
+          }
           return this.currentUser;
         })
         .catch((err) => {
@@ -57,7 +111,10 @@ export const useAuthStore = defineStore('AuthStore', {
       return response
         .then((res) => {
           const content = res.data?.body?.content as UserType | undefined;
-          if (content) this.currentUser = content;
+          if (content) {
+            this.currentUser = content;
+            this.persistSession(Boolean(data.remember_me));
+          }
           return content?.authorization.access_token ?? null;
         })
         .catch((err) => {
@@ -78,6 +135,7 @@ export const useAuthStore = defineStore('AuthStore', {
             this.currentUser.authorization.access_token = content.authorization.access_token;
             this.currentUser.authorization.refresh_token = content.authorization.refresh_token;
           }
+          this.persistSession();
           return content?.authorization.access_token ?? null;
         })
         .catch((err) => {
@@ -128,22 +186,21 @@ export const useAuthStore = defineStore('AuthStore', {
         });
     },
     async logout(): Promise<void> {
-      const response = axios.post<ServerResponse>(this.pageInfo.STORE_LOGOUT);
-      return response
-        .then((res) => {
-          if (res.status === 200) {
-            this.currentUser = null;
-          }
-        })
-        .catch((err) => {
-          if (axios.isAxiosError(err)) throw err.response?.data ?? err;
-          throw err;
-        });
+      try {
+        await axios.post<ServerResponse>(this.pageInfo.STORE_LOGOUT);
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status !== 401) {
+          throw err.response?.data ?? err;
+        }
+      } finally {
+        this.clearSession();
+      }
     },
     setApiToken(token: string): void {
       if (!this.currentUser) throw new Error('Nessun utente attivo');
 
       this.apiToken = token;
+      this.persistSession();
     },
   },
 });

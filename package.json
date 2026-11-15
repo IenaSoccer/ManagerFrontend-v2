@@ -9,7 +9,7 @@
   "scripts": {
     "lint": "eslint -c ./eslint.config.js \"./src*/**/*.{ts,js,cjs,mjs,vue}\"",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
-    "test": "echo \"No test specified\" && exit 0",
+    "test": "npm run lint && vue-tsc --noEmit",
     "dev": "dotenvx run -f ./config/.env.development -- quasar dev",
     "build": "dotenvx run -f ./config/.env.production -- quasar build",
     "postinstall": "quasar prepare"
@@ -21,7 +21,6 @@
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
     "pinia": "^3.0.4",
-    "pinia-plugin-persistedstate": "^4.7.1",
     "quasar": "^2.19.2",
     "vue": "^3.5.22",
     "vue-router": "^4.0.12",

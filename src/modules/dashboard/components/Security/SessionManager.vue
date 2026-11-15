@@ -7,11 +7,11 @@
       <h2 class="text-lg font-bold text-gray-800">Gestione Sessioni</h2>
       <button
         @click="revokeOtherSessions"
-        :disabled="sessions.length < 1"
+        :disabled="sessions.length < 1 || isRevoking"
         class="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
         title="Termina tutte le sessioni"
       >
-        Termina tutte le sessioni
+        {{ isRevoking ? 'Terminazione…' : 'Termina tutte le sessioni' }}
       </button>
     </div>
 
@@ -35,7 +35,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import type { EventBus } from 'quasar';
+import { useQuasar, type EventBus } from 'quasar';
 import { handleStatus } from 'src/helpers/errors';
 import type { Globals } from 'src/interfaces/globals';
 import type { SessionType } from 'src/modules/auth/interfaces/payloads';
@@ -44,6 +44,8 @@ import { inject, onMounted, ref } from 'vue';
 const authStore = inject<Globals>('globals')?.stores.auth;
 const sessions = ref<SessionType[]>([]);
 const bus = inject<EventBus>('bus');
+const $q = useQuasar();
+const isRevoking = ref(false);
 
 const getActiveSessions = async () => {
   await authStore
@@ -52,19 +54,32 @@ const getActiveSessions = async () => {
       sessions.value = activeSessions;
     })
     .catch((err) => {
-      handleStatus(err, bus!);
+      handleStatus(err, bus);
     });
 };
 
-const revokeOtherSessions = async () => {
+const revokeOtherSessions = () => {
   if (!sessions.value.length) return;
+  $q.dialog({
+    title: 'Termina sessioni',
+    message: 'Vuoi terminare tutte le altre sessioni attive?',
+    cancel: true,
+    persistent: true,
+  }).onOk(() => void performRevokeOtherSessions());
+};
+
+const performRevokeOtherSessions = async () => {
+  isRevoking.value = true;
   await authStore
     ?.revokeAllSessions()
     .then(() => {
       void getActiveSessions();
     })
     .catch((err) => {
-      handleStatus(err, bus!);
+      handleStatus(err, bus);
+    })
+    .finally(() => {
+      isRevoking.value = false;
     });
 };
 

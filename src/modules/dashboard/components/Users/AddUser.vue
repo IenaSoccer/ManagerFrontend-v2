@@ -64,7 +64,11 @@ const addUser = () => {
     .createUser(newUser.value)
     .then((response: string | null) => {
       bus?.emit('success:general', { title: 'Utente aggiunto con successo', button: 'Chiudi' });
-      alert('La password generata è: ' + response);
+      bus?.emit('warning:general', {
+        title: `Password temporanea: ${response ?? 'non disponibile'}. Copiala ora e comunicala in modo sicuro.`,
+        button: 'Chiudi',
+      });
+      bus?.emit('refresh:userList');
 
       newUser.value = {
         firstname: '',
@@ -74,7 +78,7 @@ const addUser = () => {
       };
     })
     .catch((err) => {
-      handleStatus(err, bus!);
+      handleStatus(err, bus);
     })
     .finally(() => {
       isSubmitting.value = false;

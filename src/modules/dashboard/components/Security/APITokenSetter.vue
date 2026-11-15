@@ -57,7 +57,7 @@ const toggleShow = () => {
 
 const saveToken = () => {
   if (!apiToken.value) {
-    bus?.emit('error:general', 'Inserisci un API token');
+    bus?.emit('error:general', { title: 'Inserisci un API token', button: 'Chiudi' });
     return;
   }
 
@@ -66,7 +66,7 @@ const saveToken = () => {
     if (authStore?.setApiToken) authStore.setApiToken(apiToken.value);
     bus?.emit('success:general', { title: 'Token salvato con successo!', button: 'Chiudi' });
   } catch {
-    bus?.emit('error:general', 'Impossibile salvare il token');
+    bus?.emit('error:general', { title: 'Impossibile salvare il token', button: 'Chiudi' });
   }
 };
 
@@ -75,7 +75,7 @@ const copyToken = async () => {
     await navigator.clipboard.writeText(apiToken.value || '');
     bus?.emit('success:general', { title: 'Token copiato negli appunti', button: 'Ok' });
   } catch {
-    bus?.emit('error:general', 'Impossibile copiare il token');
+    bus?.emit('error:general', { title: 'Impossibile copiare il token', button: 'Chiudi' });
   }
 };
 </script>

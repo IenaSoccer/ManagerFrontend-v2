@@ -115,6 +115,10 @@
       </div>
 
       <div class="flex gap-4 mt-8 pt-8 border-t-2 border-gray-200 animate-fade-in opacity-0">
+        <button type="button" @click="closeEditor"
+          class="px-8 py-4 text-base font-semibold rounded-xl border-2 border-gray-300 text-gray-700 hover:bg-gray-100">
+          Annulla
+        </button>
         <button type="submit"
           class="flex-1 px-8 py-4 text-base font-semibold rounded-xl cursor-pointer transition-all duration-300 border-0 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-500/50 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0"
           :disabled="isSaving">
@@ -127,9 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { QuillEditor } from '@vueup/vue-quill';
-import '@vueup/vue-quill/dist/vue-quill.snow.css';
+import { defineAsyncComponent, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Resource } from '../../interfaces/resources';
 import type { EventBus } from 'quasar';
 import { handleStatus } from 'src/helpers/errors';
@@ -147,6 +149,18 @@ const isEditing = ref(false);
 const showForm = ref(false);
 const isHtmlSourceMode = ref(false);
 const editorContent = ref('');
+const QuillEditor = defineAsyncComponent(async () => {
+  await import('@vueup/vue-quill/dist/vue-quill.snow.css');
+  const module = await import('@vueup/vue-quill');
+  return module.QuillEditor;
+});
+
+const cloneResource = (value: Resource<string>) => structuredClone(value);
+const closeEditor = () => {
+  showForm.value = false;
+  resource.value = null;
+  editorContent.value = '';
+};
 
 const syncEditorContentFromResource = () => {
   if (!resource.value || resource.value.content.type !== 1) return;
@@ -178,7 +192,7 @@ onMounted(() => {
     }
 
     isEditing.value = true;
-    resource.value = res;
+    resource.value = cloneResource(res);
     if (!resource.value.attributes.custom) {
       resource.value.attributes.custom = {};
     }
@@ -223,7 +237,7 @@ onMounted(() => {
       thumbnail: '',
       content: {
         type: mode === 'post' ? 1 : 0,
-        data: [],
+        data: mode === 'post' ? '' : [],
       },
       attributes: {
         preview: false,
@@ -291,9 +305,11 @@ const handleSubmit = () => {
           title: 'Risorsa modificata correttamente!',
           button: 'Chiudi',
         });
+        bus?.emit('refresh:resources', resource.value!.fid);
+        closeEditor();
       })
       .catch((error: ServerResponse | ValidationError) => {
-        handleStatus(error, bus!);
+        handleStatus(error, bus);
       })
       .finally(() => {
         isSaving.value = false;
@@ -306,15 +322,15 @@ const handleSubmit = () => {
     .then(() => {
       bus?.emit('success:general', { title: 'Risorsa aggiunta correttamente!', button: 'Chiudi' });
       bus?.emit('refresh:resources', resource.value!.fid);
+      closeEditor();
     })
     .catch((error: ServerResponse | ValidationError) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     })
     .finally(() => {
       isSaving.value = false;
     });
 
-  isSaving.value = false;
 };
 </script>
 

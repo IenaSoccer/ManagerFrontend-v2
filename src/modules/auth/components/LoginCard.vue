@@ -38,7 +38,7 @@
 
     <!-- Card -->
     <div
-      class="relative z-20 w-[360px] p-7 rounded-xl backdrop-blur-md bg-gradient-to-br from-[rgba(0,0,0,0.85)] via-[rgba(65,105,225,0.06)] to-[rgba(255,179,102,0.06)] shadow-2xl text-white transform transition-transform duration-300 hover:-translate-y-1 hover:scale-105">
+      class="relative z-20 w-full max-w-[360px] mx-4 p-7 rounded-xl backdrop-blur-md bg-gradient-to-br from-[rgba(0,0,0,0.85)] via-[rgba(65,105,225,0.06)] to-[rgba(255,179,102,0.06)] shadow-2xl text-white transform transition-transform duration-300 hover:-translate-y-1 hover:scale-105">
       <div class="flex items-center gap-3 mb-3">
         <div class="flex items-center justify-center font-bold text-black">
         </div>
@@ -61,19 +61,19 @@
         </div>
         <!-- Password -->
         <div class="relative flex items-center">
-          <input v-model="loginData.password" :type="reveal ? 'text' : 'password'" required id="password"
+          <input v-model="loginData.password" :type="reveal ? 'text' : 'password'" required id="password" autocomplete="current-password"
             placeholder=" "
             class="flex-1 px-3 py-3 pr-12 rounded-lg border border-white/8 bg-transparent text-inherit outline-none text-sm transition-shadow duration-150 focus:ring-2 focus:ring-[rgba(33,22,247,0.18)] focus:border-[rgba(33,22,247,0.35)]" />
           <label for="password" :class="loginData.password ? 'text-xs -translate-y-3 scale-95' : 'text-sm translate-y-0'
             " class="absolute left-3 top-3 pointer-events-none transition-all duration-150 text-white/70">
             Password
           </label>
-          <button type="button" @click="reveal = !reveal"
+          <button type="button" @click="reveal = !reveal" :aria-label="reveal ? 'Nascondi password' : 'Mostra password'"
             class="absolute right-2 text-white/75 cursor-pointer text-sm bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] rounded-md px-2 py-1 transition-colors duration-150">
             {{ reveal ? 'Nascondi' : 'Mostra' }}
           </button>
         </div>
-        <RecaptchaV2 @load-callback="handleLoadCallback" size="normal" />
+        <div class="recaptcha-wrapper"><RecaptchaV2 @load-callback="handleLoadCallback" @expired-callback="handleExpiredCallback" size="normal" /></div>
         <div class="flex justify-between items-center text-sm text-white/80">
           <label class="inline-flex items-center gap-2">
             <input v-model="loginData.remember_me" type="checkbox" class="w-3.5 h-3.5 rounded-sm accent-[#2116F7]" />
@@ -82,9 +82,9 @@
           <a href="#" @click.prevent="displayModal" class="text-[#F77B16] no-underline hover:underline">Password
             dimenticata?</a>
         </div>
-        <button type="submit"
-          class="mt-1 py-3 rounded-lg cursor-pointer bg-gradient-to-r from-[#4169E1] to-[#FFB366] text-black font-bold shadow-2xl transform transition duration-200 hover:scale-102 active:scale-98">
-          Accedi
+        <button type="submit" :disabled="isSubmitting || !loginData['g-recaptcha-response']"
+          class="mt-1 py-3 rounded-lg cursor-pointer bg-gradient-to-r from-[#4169E1] to-[#FFB366] text-black font-bold shadow-2xl transform transition duration-200 hover:scale-102 active:scale-98 disabled:cursor-not-allowed disabled:opacity-60">
+          {{ isSubmitting ? 'Accesso in corso…' : 'Accedi' }}
         </button>
       </form>
     </div>
@@ -97,20 +97,25 @@ import type { LoginPayload } from '../interfaces/payloads';
 import type { ServerResponse, ValidationError } from 'src/interfaces/response';
 import type { EventBus } from 'quasar';
 import { handleStatus } from 'src/helpers/errors';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import type { Globals } from 'src/interfaces/globals';
 import { RecaptchaV2 } from 'vue3-recaptcha-v2';
 
 const handleLoadCallback = (response: unknown) => {
   loginData.value['g-recaptcha-response'] = response as string;
 };
+const handleExpiredCallback = () => {
+  loginData.value['g-recaptcha-response'] = '';
+};
 
 const globals = inject('globals') as Globals;
 const router = useRouter();
+const route = useRoute();
 const bus = inject<EventBus>('bus');
 const authStore = globals.stores.auth;
 
 const reveal = ref(false);
+const isSubmitting = ref(false);
 const loginData = ref<LoginPayload>({
   email: '',
   password: '',
@@ -119,6 +124,8 @@ const loginData = ref<LoginPayload>({
 });
 
 const onLogin = () => {
+  if (isSubmitting.value || !loginData.value['g-recaptcha-response']) return;
+  isSubmitting.value = true;
   authStore
     .login(loginData.value)
     .then(async (response) => {
@@ -127,27 +134,31 @@ const onLogin = () => {
           title: 'Accesso effettuato con successo!',
           button: 'Chiudi',
         });
-        await router.push({ name: 'IndexPage' });
+        const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : null;
+        await router.push(redirect?.startsWith('/') ? redirect : { name: 'IndexPage' });
       }
     })
     .catch((error: ServerResponse | ValidationError) => {
-      handleStatus(error, bus!);
-    });
-};
-
-const onPageLoad = () => {
-  authStore
-    .refreshToken()
-    .then(async () => {
-      await router.push({ name: 'IndexPage' });
+      handleStatus(error, bus);
     })
-    .catch((error: ServerResponse | ValidationError) => {
-      handleStatus(error, bus!);
+    .finally(() => {
+      isSubmitting.value = false;
     });
 };
 
 const displayModal = () => {
-  bus?.emit('warning:general', { title: 'Chiedi a ErPaciocco', button: 'Chiudi' });
+  bus?.emit('warning:general', {
+    title: 'Contatta un amministratore per reimpostare la password.',
+    button: 'Chiudi',
+  });
 };
-onPageLoad();
 </script>
+
+<style scoped>
+@media (prefers-reduced-motion: reduce) {
+  :deep(*) { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+@media (max-width: 360px) {
+  .recaptcha-wrapper { transform: scale(0.75); transform-origin: left center; width: 304px; height: 59px; }
+}
+</style>

@@ -68,8 +68,9 @@
       <input v-model="account.details.birthday" type="date"
         class="w-full px-3 py-2 border border-gray-300 rounded-lg" />
       <button @click="saveChanges"
-        class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition">
-        Salva
+        :disabled="isSaving"
+        class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition disabled:opacity-60">
+        {{ isSaving ? 'Salvataggio…' : 'Salva' }}
       </button>
     </div>
   </div>
@@ -90,10 +91,12 @@ const authStore = globals.stores.auth;
 
 const bus = inject<EventBus>('bus');
 const isEditing = ref(false);
-const account = ref<UserType | null>({} as UserType);
+const account = ref<UserType | null>(null);
 const router = useRouter();
 const isLogoutButtonDisabled = ref(false);
 const isLoading = ref(true);
+const isSaving = ref(false);
+const originalAccount = ref<UserType | null>(null);
 
 const computedBirthday = computed(() => {
   if (!account.value?.details.birthday) return 'N/A';
@@ -112,20 +115,26 @@ const fetchAccountInfo = () => {
 
   accountStore
     .getUserInfo()
-    .then(() => {
-      account.value!.user = accountStore.myUser!.user;
-      account.value!.details = accountStore.myUser!.details;
+    .then((user) => {
+      if (!user) return;
+      account.value = structuredClone(user);
+      originalAccount.value = structuredClone(user);
       isLoading.value = false;
     })
     .catch((error: ServerResponse) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
+    }).finally(() => {
+      isLoading.value = false;
     });
 };
 
 const toggleEditMode = () => {
+  if (isEditing.value && originalAccount.value) account.value = structuredClone(originalAccount.value);
   isEditing.value = !isEditing.value;
 };
 const saveChanges = () => {
+  if (isSaving.value) return;
+  isSaving.value = true;
   accountStore
     .updateUserInfo({
       firstname: account.value!.details.firstname,
@@ -135,6 +144,7 @@ const saveChanges = () => {
     })
     .then(() => {
       isEditing.value = false;
+      originalAccount.value = structuredClone(account.value!);
 
       bus?.emit('success:general', {
         title: 'Profilo modificato correttamente!',
@@ -143,10 +153,10 @@ const saveChanges = () => {
       bus?.emit('refresh:accountInfo');
     })
     .catch((error: ServerResponse | ValidationError) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
+    }).finally(() => {
+      isSaving.value = false;
     });
-
-  isEditing.value = false;
 };
 
 const onImageChange = (event: Event) => {
@@ -164,7 +174,7 @@ const onImageChange = (event: Event) => {
         bus?.emit('refresh:accountInfo');
       })
       .catch((error: ServerResponse | ValidationError) => {
-        handleStatus(error, bus!);
+        handleStatus(error, bus);
       });
   }
 };
@@ -178,7 +188,9 @@ const logout = () => {
       bus?.emit('success:general', { title: 'Logout effettuato con successo!', button: 'Chiudi' });
     })
     .catch((error: ServerResponse) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
+    }).finally(() => {
+      isLogoutButtonDisabled.value = false;
     });
 };
 

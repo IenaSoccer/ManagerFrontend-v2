@@ -36,12 +36,12 @@
           <div class="flex gap-1">
             <q-btn v-if="editingId === prop.node.id" flat dense round size="sm" icon="check" color="green"
               @click.stop="onSave(prop.node)" />
-            <q-btn v-else flat dense round size="sm" icon="add" @click.stop="onAdd(prop.node)" />
+            <q-btn v-else flat dense round size="sm" icon="add" aria-label="Aggiungi sottocartella" @click.stop="onAdd(prop.node)" />
             <q-btn v-if="editingId === prop.node.id" flat dense round size="sm" icon="close" color="red"
               @click.stop="onCancel" />
-            <q-btn v-else flat dense round size="sm" icon="edit" @click.stop="onEditStart(prop.node)" />
+            <q-btn v-else flat dense round size="sm" icon="edit" aria-label="Modifica cartella" @click.stop="onEditStart(prop.node)" />
             <q-btn flat :disabled="!prop.node.pid" dense round size="sm" icon="delete"
-              @click.stop="onRemove(prop.node)" />
+              aria-label="Elimina cartella" @click.stop="confirmRemove(prop.node)" />
             <q-btn v-if="prop.node.visibility" flat dense round size="sm" icon="share" color="orange"
               @click.stop="onShare(prop.node)" />
           </div>
@@ -56,7 +56,7 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref } from 'vue';
 import { handleStatus } from 'src/helpers/errors';
-import type { EventBus } from 'quasar';
+import { useQuasar, type EventBus } from 'quasar';
 import type { Folder } from '../../interfaces/folders';
 import type { Globals } from 'src/interfaces/globals';
 import type { ServerResponse, ValidationError } from 'src/interfaces/response';
@@ -67,6 +67,7 @@ const globals = inject('globals') as Globals;
 const foldersStore = globals.stores.folders;
 
 const bus = inject<EventBus>('bus');
+const $q = useQuasar();
 const folderTree = ref<Folder[]>([]);
 const formattedFolderTree = ref<FormattedFolder[]>([]);
 const isLoaded = ref(false);
@@ -107,13 +108,13 @@ const getFolders = (nodeId?: string) => {
         isLoaded.value = true;
       })
       .catch((error: ServerResponse) => {
-        handleStatus(error, bus!);
+        handleStatus(error, bus);
       }).finally(() => {
         isLoaded.value = true;
       });
   } else {
     foldersStore.getFolderById(nodeId).catch((error: ServerResponse) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     }).finally(() => {
       isLoaded.value = true;
     });
@@ -141,7 +142,7 @@ const onAdd = (node: Folder) => {
       getFolders();
     })
     .catch((error: ServerResponse | ValidationError) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     });
 };
 
@@ -163,7 +164,7 @@ const onSave = (node: Folder) => {
       editData.value = {};
     })
     .catch((error: ServerResponse | ValidationError) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     });
 };
 
@@ -179,8 +180,17 @@ const onRemove = (node: Folder) => {
       getFolders();
     })
     .catch((error: ServerResponse) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     });
+};
+
+const confirmRemove = (node: Folder) => {
+  $q.dialog({
+    title: 'Elimina cartella',
+    message: 'La cartella e i suoi contenuti potrebbero non essere recuperabili. Vuoi continuare?',
+    cancel: true,
+    persistent: true,
+  }).onOk(() => onRemove(node));
 };
 
 const onCancel = () => {

@@ -4,7 +4,7 @@
       <q-card-section class="row select-none items-center q-pb-none bg-gradient-to-r from-blue-500 to-purple-600">
         <div class="text-h6 text-white font-bold">📚 Archivio Allegati</div>
         <q-space />
-        <q-btn icon="close" flat round dense @click="dialog.isVisible = false" class="text-white" />
+        <q-btn icon="close" flat round dense aria-label="Chiudi archivio" @click="dialog.isVisible = false" class="text-white" />
       </q-card-section>
 
       <!-- Attachments Grid with Pagination -->
@@ -68,7 +68,7 @@
               </div>
               <div class="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <q-btn icon="delete" flat dense size="sm" color="negative" class="bg-red-500/90 hover:bg-red-600"
-                  @click="deleteAttachment(attachmentsData.folderId, attachment.id)" />
+                  aria-label="Elimina allegato" @click="confirmDeleteAttachment(attachmentsData.folderId, attachment.id)" />
               </div>
               <div v-if="isAttachmentSelected(attachment.id)"
                 class="absolute top-2 right-2 bg-blue-400 text-white text-xs px-2 py-1 rounded shadow-lg font-bold z-10">
@@ -127,7 +127,7 @@
 
       <q-card-actions align="right" class="bg-gray-100 space-x-2">
         <q-btn label="Annulla" flat dense @click="resetUploadForm" />
-        <q-btn label="Carica" color="positive" dense
+        <q-btn label="Carica" color="positive" dense :loading="upload.isUploading"
           :disable="upload.attachmentPreviews.length === 0 || !upload.newAttachment.name.trim()"
           @click="uploadAttachment" />
         <span v-if="upload.attachmentPreviews.length > 0" class="text-sm text-gray-600">
@@ -135,7 +135,7 @@
         </span>
         <q-separator vertical />
         <q-btn label="Elimina Selezionati" color="negative" flat dense :disable="!hasSelection"
-          @click="deleteSelected" />
+          @click="confirmDeleteSelected" />
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -144,7 +144,7 @@
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { UpdateAttachmentPayload } from '../../stores/attachments';
 import { handleStatus } from 'src/helpers/errors';
-import type { EventBus } from 'quasar';
+import { useQuasar, type EventBus } from 'quasar';
 import type { AttachmentType } from '../../interfaces/attachments';
 import type { Globals } from 'src/interfaces/globals';
 import type { ServerResponse, ValidationError } from 'src/interfaces/response';
@@ -153,6 +153,7 @@ const globals = inject('globals') as Globals;
 const attachmentsStore = globals.stores.attachments;
 
 const bus = inject<EventBus>('bus');
+const $q = useQuasar();
 
 const dialog = ref({
   isVisible: false,
@@ -168,6 +169,7 @@ const attachmentsData = ref({
 });
 
 const upload = ref({
+  isUploading: false,
   attachmentFiles: [] as File[],
   attachmentPreviews: [] as { file: File; preview: string }[],
   newAttachment: { name: '', description: '' } as UpdateAttachmentPayload,
@@ -272,7 +274,7 @@ const loadAttachments = async () => {
     attachmentsData.value.attachments = response ?? [];
     attachmentsData.value.total = attachmentsStore.total;
   } catch (error) {
-    handleStatus(error as ServerResponse | ValidationError, bus!);
+    handleStatus(error as ServerResponse | ValidationError, bus);
   } finally {
     setLoadedState(true);
   }
@@ -300,31 +302,36 @@ const handleDrop = (event: DragEvent) => {
 };
 
 const uploadAttachment = async () => {
-  if (upload.value.attachmentPreviews.length === 0) {
+  if (upload.value.attachmentPreviews.length === 0 || upload.value.isUploading) {
     return;
   }
-
-  for (const { preview } of upload.value.attachmentPreviews) {
-    await attachmentsStore
-      .addAttachment(attachmentsData.value.folderId, {
+  upload.value.isUploading = true;
+  try {
+    for (const { preview } of upload.value.attachmentPreviews) {
+      await attachmentsStore.addAttachment(attachmentsData.value.folderId, {
         ...upload.value.newAttachment,
         media: preview.substring(preview.indexOf(',') + 1),
-      })
-      .catch((error: ServerResponse | ValidationError) => {
-        handleStatus(error, bus!);
-        throw error;
       });
+    }
+    bus?.emit('success:general', {
+      title: `${upload.value.attachmentPreviews.length} allegato(i) caricato(i) con successo!`,
+      button: 'Chiudi',
+    });
+    await loadAttachments();
+    resetUploadForm();
+  } catch (error) {
+    handleStatus(error, bus);
+  } finally {
+    upload.value.isUploading = false;
   }
-
-  bus?.emit('success:general', {
-    title: `${upload.value.attachmentPreviews.length} allegato(i) caricato(i) con successo!`,
-    button: 'Chiudi',
-  });
-  await loadAttachments();
-  resetUploadForm();
 };
 
 const processFile = (file: File) => {
+  const allowedTypes = ['image/png', 'image/jpeg', 'video/mp4'];
+  if (!allowedTypes.includes(file.type)) {
+    bus?.emit('error:general', { title: `Formato non supportato: ${file.name}`, button: 'Chiudi' });
+    return;
+  }
   if (!upload.value.attachmentFiles.find((existingFile) => existingFile.name === file.name && existingFile.size === file.size)) {
     upload.value.attachmentFiles.push(file);
     const reader = new FileReader();
@@ -368,7 +375,7 @@ const updateAttachment = async (attachmentId: string, attachment: UpdateAttachme
       description: attachment.description,
     })
     .catch((error: ServerResponse | ValidationError) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     });
 };
 
@@ -423,8 +430,13 @@ const deleteAttachment = async (folderId: string, attachmentId: string) => {
 
     await reloadAfterDelete();
   } catch (error) {
-    handleStatus(error as ServerResponse, bus!);
+    handleStatus(error as ServerResponse, bus);
   }
+};
+
+const confirmDeleteAttachment = (folderId: string, attachmentId: string) => {
+  $q.dialog({ title: 'Elimina allegato', message: 'Vuoi eliminare definitivamente questo allegato?', cancel: true, persistent: true })
+    .onOk(() => void deleteAttachment(folderId, attachmentId));
 };
 
 const deleteSelected = async () => {
@@ -447,8 +459,13 @@ const deleteSelected = async () => {
 
     await reloadAfterDelete();
   } catch (error) {
-    handleStatus(error as ServerResponse, bus!);
+    handleStatus(error as ServerResponse, bus);
   }
+};
+
+const confirmDeleteSelected = () => {
+  $q.dialog({ title: 'Elimina allegati', message: `Vuoi eliminare ${selectedIdsList.value.length} allegati selezionati?`, cancel: true, persistent: true })
+    .onOk(() => void deleteSelected());
 };
 
 watch(

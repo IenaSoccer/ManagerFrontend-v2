@@ -1,7 +1,7 @@
 <template>
   <div>
-    <div class="absolute bottom-8 right-8 w-full flex flex-row justify-center items-center roboto">
-      <WBanner class="z-20 fixed" />
+    <div class="fixed bottom-4 left-4 right-4 z-50 flex justify-center pointer-events-none roboto">
+      <WBanner class="pointer-events-auto w-full max-w-xl" />
     </div>
     <router-view class="z-10 roboto" />
   </div>

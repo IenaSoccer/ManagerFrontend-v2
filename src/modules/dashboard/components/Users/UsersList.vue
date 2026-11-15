@@ -125,7 +125,7 @@
 import { roles } from 'src/helpers/roles';
 import type { UpdateUserPayload } from '../../stores/users';
 import { inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { EventBus } from 'quasar';
+import { useQuasar, type EventBus } from 'quasar';
 import { handleStatus } from 'src/helpers/errors';
 import type { UserInfo } from 'src/modules/auth/interfaces/user';
 import UserDetails from './UserDetails.vue';
@@ -135,6 +135,7 @@ const globals = inject('globals') as Globals;
 const usersStore = globals.stores.users;
 const authStore = globals.stores.auth;
 const bus = inject<EventBus>('bus');
+const $q = useQuasar();
 
 const isSaveButtonDisabled = ref(false);
 const isDeleteButtonDisabled = ref(false);
@@ -153,18 +154,20 @@ onMounted(() => {
     isLoaded.value = true;
     currentUsers.value = users || [];
   });
+  bus?.on('refresh:userList', () => void reloadUsers());
 
   onUserLoad(itemsPerPage.value, currentPage.value)
     .then((users) => {
       bus?.emit('toggle:loading', users || []);
     })
     .catch((error) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     });
 });
 
 onBeforeUnmount(() => {
   bus?.off('toggle:loading');
+  bus?.off('refresh:userList');
 });
 
 watch(currentPage, (n, o) => {
@@ -176,15 +179,21 @@ watch(currentPage, (n, o) => {
       bus?.emit('toggle:loading', users || []);
     })
     .catch((error) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     });
 });
 
 const onUserLoad = async (per_page?: number, page?: number) => {
   return await usersStore.getUserList(per_page, page).catch((error) => {
-    handleStatus(error, bus!);
+    handleStatus(error, bus);
     return null;
   });
+};
+
+const reloadUsers = async () => {
+  isLoaded.value = false;
+  const users = await onUserLoad(itemsPerPage.value, currentPage.value);
+  bus?.emit('toggle:loading', users ?? []);
 };
 
 const saveUser = (userId: string, user: UserInfo) => {
@@ -201,7 +210,7 @@ const saveUser = (userId: string, user: UserInfo) => {
       bus?.emit('success:general', { title: 'Utente modificato correttamente!', button: 'Chiudi' });
     })
     .catch((error) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     })
     .finally(() => {
       isSaveButtonDisabled.value = false;
@@ -209,6 +218,15 @@ const saveUser = (userId: string, user: UserInfo) => {
 };
 
 const deleteUser = (userId: string) => {
+  $q.dialog({
+    title: 'Elimina utente',
+    message: 'Questa operazione è definitiva. Vuoi continuare?',
+    cancel: true,
+    persistent: true,
+  }).onOk(() => performDeleteUser(userId));
+};
+
+const performDeleteUser = (userId: string) => {
   isDeleteButtonDisabled.value = true;
   usersStore
     .deleteUserById(userId)
@@ -217,7 +235,7 @@ const deleteUser = (userId: string) => {
       bus?.emit('refresh:userList');
     })
     .catch((error) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     })
     .finally(() => {
       setTimeout(() => {
@@ -235,10 +253,13 @@ const resetPassword = (userId: string) => {
         title: 'Password reimpostata correttamente!',
         button: 'Chiudi',
       });
-      alert('La nuova password è: ' + response);
+      bus?.emit('warning:general', {
+        title: `Nuova password temporanea: ${response ?? 'non disponibile'}. Copiala ora.`,
+        button: 'Chiudi',
+      });
     })
     .catch((error) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     })
     .finally(() => {
       isResetPasswordButtonDisabled.value = false;

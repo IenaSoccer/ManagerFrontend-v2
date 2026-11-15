@@ -7,37 +7,37 @@ const statusMappings: Record<number, string> = {
   422: 'error:validation',
 };
 
-const handleStatus = (error: ServerResponse | ValidationError, bus: EventBus) => {
-  if ('body' in error && typeof error.body?.code === 'number') {
-    const key = statusMappings[error.body.code] ?? statusMappings[500];
-    bus?.emit(key!, { title: error.body.message ?? 'Errore', button: 'Chiudi' });
+const handleStatus = (error: unknown, bus?: EventBus) => {
+  if (!bus) return;
+  if (typeof error === 'object' && error !== null && 'body' in error) {
+    const serverError = error as ServerResponse;
+    if (typeof serverError.body?.code !== 'number') return;
+    const key = statusMappings[serverError.body.code] ?? statusMappings[500];
+    bus.emit(key!, { title: serverError.body.message ?? 'Errore', button: 'Chiudi' });
     return;
   }
 
-  if ('message' in error && error.message) {
-    if (error.message.includes('validation'))
-      bus?.emit(statusMappings[422] ?? statusMappings[500]!, {
-        title: error.message,
+  if (typeof error === 'object' && error !== null && 'errors' in error) {
+    const validation = error as ValidationError;
+    const firstError = Object.values(validation.errors ?? {}).flat()[0];
+    if (firstError) {
+      bus.emit(statusMappings[422]!, { title: firstError, button: 'Chiudi' });
+      return;
+    }
+  }
+
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = typeof error.message === 'string' ? error.message : '';
+    if (message) {
+      bus.emit(message.toLowerCase().includes('validation') ? statusMappings[422]! : statusMappings[500]!, {
+        title: message,
         button: 'Chiudi',
       });
-    else
-      bus?.emit(statusMappings[401] ?? statusMappings[500]!, {
-        title: error.message,
-        button: 'Chiudi',
-      });
-    return;
+      return;
+    }
   }
 
-  if ('errors' in error && Array.isArray(error.errors) && error.errors.length > 0) {
-    const firstError = error.errors[0];
-    bus?.emit(statusMappings[422] ?? statusMappings[500]!, {
-      title: firstError.message ?? 'Errore di validazione',
-      button: 'Chiudi',
-    });
-    return;
-  }
-
-  bus?.emit(statusMappings[500]!, { title: 'Errore sconosciuto', button: 'Chiudi' });
+  bus.emit(statusMappings[500]!, { title: 'Errore sconosciuto', button: 'Chiudi' });
 };
 
 export { handleStatus };

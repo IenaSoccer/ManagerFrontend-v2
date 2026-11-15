@@ -104,7 +104,6 @@ import { inject, onMounted, ref } from 'vue';
 import type { EventBus } from 'quasar';
 import { handleStatus } from 'src/helpers/errors';
 import type { Metrics } from '../../interfaces/metrics';
-import { all } from 'axios';
 
 const globals = inject('globals') as Globals;
 const bus = inject<EventBus>('bus');
@@ -122,7 +121,7 @@ const getResourcesMetrics = async () => {
             } as Metrics;
         })
         .catch((err) => {
-            handleStatus(err, bus!);
+            handleStatus(err, bus);
         });
 };
 
@@ -136,7 +135,7 @@ const getUsersMetrics = async () => {
             } as Metrics;
         })
         .catch((err) => {
-            handleStatus(err, bus!);
+            handleStatus(err, bus);
         });
 };
 const getPostMetrics = async () => {
@@ -149,12 +148,12 @@ const getPostMetrics = async () => {
             } as Metrics;
         })
         .catch((err) => {
-            handleStatus(err, bus!);
+            handleStatus(err, bus);
         });
 };
 
 onMounted(async () => {
-    await all([getResourcesMetrics(), getUsersMetrics(), getPostMetrics()]);
+    await Promise.all([getResourcesMetrics(), getUsersMetrics(), getPostMetrics()]);
     isLoaded.value = true;
 });
 </script>

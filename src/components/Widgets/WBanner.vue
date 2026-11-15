@@ -1,89 +1,68 @@
 <template>
-  <q-banner
-    inline-actions
-    dense
-    rounded
-    class="transition transition-all duration-500 ease-in-out z-50 m-2"
-    :class="{
-      hidden: hidden,
-      'text-white bg-info': severity === 0,
-      'text-white bg-warning': severity === 1,
-      'text-white bg-accent': severity === 2,
-      'text-white bg-primary': severity === 3,
-    }"
-  >
+  <q-banner v-if="visible" inline-actions dense rounded role="status" aria-live="polite"
+    class="transition-all duration-300 z-50 m-2 text-white" :class="backgroundClass">
     {{ title }}
-    <template v-slot:action>
-      <q-btn flat color="white" :label="button" @click="hidden = true" />
-    </template>
-    <template v-slot:avatar>
-      <q-icon :name="icon[severity]" color="white" />
-    </template>
+    <template #action><q-btn flat color="white" :label="button" @click="hide" /></template>
+    <template #avatar><q-icon :name="icon" color="white" /></template>
   </q-banner>
 </template>
 
-<style scoped></style>
-
-<script lang="ts">
+<script setup lang="ts">
 import type { EventBus } from 'quasar';
 import type { AlertPayload } from 'src/interfaces/alerts';
-import { Severity } from 'src/interfaces/alerts';
-import { defineComponent } from 'vue';
-import { ref, inject } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 
-export default defineComponent({
-  name: 'WBanner',
-  setup() {
-    return {
-      severity: ref<Severity>(Severity.INFO),
-      title: ref<string>(''),
-      button: ref<string>(''),
-      hidden: ref<boolean>(true),
-      icon: ['info', 'warning', 'error', 'check_circle'],
-    };
-  },
-  mounted() {
-    const bus = inject<EventBus>('bus');
+type AlertKind = 'info' | 'warning' | 'error' | 'success';
+type GeneralPayload = AlertPayload | string;
 
-    bus!.on('error:unauthorized', ({ title, button }: AlertPayload) => {
-      this.severity = Severity.WARNING;
-      this.title = `Non autorizzato: ${title}`;
-      this.button = button;
-      this.hidden = false;
-      setTimeout(() => (this.hidden = true), 5000);
-    });
+const bus = inject<EventBus>('bus');
+const visible = ref(false);
+const title = ref('');
+const button = ref('Chiudi');
+const kind = ref<AlertKind>('info');
+let timer: ReturnType<typeof setTimeout> | undefined;
 
-    bus!.on('error:server', ({ title, button }: AlertPayload) => {
-      this.severity = Severity.ERROR;
-      this.title = `Errore: ${title}`;
-      this.button = button;
-      this.hidden = false;
-      setTimeout(() => (this.hidden = true), 5000);
-    });
+const icon = computed(() => ({ info: 'info', warning: 'warning', error: 'error', success: 'check_circle' })[kind.value]);
+const backgroundClass = computed(() => ({ info: 'bg-info', warning: 'bg-warning', error: 'bg-negative', success: 'bg-positive' })[kind.value]);
 
-    bus!.on('error:validation', ({ title, button }: AlertPayload) => {
-      this.severity = Severity.ERROR;
-      this.title = `Validazione fallita: ${title}`;
-      this.button = button;
-      this.hidden = false;
-      setTimeout(() => (this.hidden = true), 5000);
-    });
+const hide = () => {
+  visible.value = false;
+  if (timer) clearTimeout(timer);
+};
 
-    bus!.on('success:general', ({ title, button }: AlertPayload) => {
-      this.severity = Severity.SUCCESS;
-      this.title = `${title}`;
-      this.button = button;
-      this.hidden = false;
-      setTimeout(() => (this.hidden = true), 5000);
-    });
+const show = (alertKind: AlertKind, payload: GeneralPayload, prefix = '') => {
+  if (timer) clearTimeout(timer);
+  const normalized = typeof payload === 'string' ? { title: payload, button: 'Chiudi' } : payload;
+  kind.value = alertKind;
+  title.value = `${prefix}${normalized.title}`;
+  button.value = normalized.button || 'Chiudi';
+  visible.value = true;
+  timer = setTimeout(hide, 5000);
+};
 
-    bus!.on('warning:general', ({ title, button }: AlertPayload) => {
-      this.severity = Severity.WARNING;
-      this.title = `${title}`;
-      this.button = button;
-      this.hidden = false;
-      setTimeout(() => (this.hidden = true), 5000);
-    });
-  },
+const unauthorized = (payload: AlertPayload) => show('warning', payload, 'Non autorizzato: ');
+const serverError = (payload: AlertPayload) => show('error', payload, 'Errore: ');
+const validationError = (payload: AlertPayload) => show('error', payload, 'Validazione fallita: ');
+const generalError = (payload: GeneralPayload) => show('error', payload);
+const success = (payload: AlertPayload) => show('success', payload);
+const warning = (payload: AlertPayload) => show('warning', payload);
+
+onMounted(() => {
+  bus?.on('error:unauthorized', unauthorized);
+  bus?.on('error:server', serverError);
+  bus?.on('error:validation', validationError);
+  bus?.on('error:general', generalError);
+  bus?.on('success:general', success);
+  bus?.on('warning:general', warning);
+});
+
+onBeforeUnmount(() => {
+  if (timer) clearTimeout(timer);
+  bus?.off('error:unauthorized', unauthorized);
+  bus?.off('error:server', serverError);
+  bus?.off('error:validation', validationError);
+  bus?.off('error:general', generalError);
+  bus?.off('success:general', success);
+  bus?.off('warning:general', warning);
 });
 </script>

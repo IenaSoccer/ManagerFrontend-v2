@@ -1,67 +1,248 @@
-name: Deploy Quasar Application
+name: Build and deploy Quasar application
 
 on:
-  # Run the workflow only for the intended release branches.
   push:
-    branches: [ release, staging ]
+    branches:
+      - release
+      - staging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    name: Deploy ${{ github.ref_name }}
+    if: ${{ github.ref_name == 'release' || github.ref_name == 'staging' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: ${{ github.ref_name == 'release' && 'production' || 'staging' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      # Set up Node.js and enable npm cache on the GitHub runner.
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
-          cache: 'npm'
-          
-      # Ensure the project installs, passes linting, and builds before deployment.
-      - name: Install dependencies and build assets
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Test application
+        run: npm test
+
+      - name: Build production assets
+        run: npm run build
+
+      - name: Package verified build
+        id: package
         run: |
-          npm install
-          npm run lint
-          npm run build
-        
-      # Connect to the remote server and update or clone the current branch.
-      - name: Deploy to production server
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e
-            # Variables and paths loaded from repository secrets.
-            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
-            REPO_SSH_URL="git@github.com:${{ github.repository }}.git"
-            KEY_FILE="${{ secrets.DEPLOY_KEY_PATH }}"
+          set -Eeuo pipefail
+          test -f dist/spa/index.html
+          printf '{"commit":"%s","run_id":"%s"}\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" \
+            > dist/spa/deployment.json
+          tar -czf "$RUNNER_TEMP/release.tgz" dist/spa
+          checksum="$(sha256sum "$RUNNER_TEMP/release.tgz" | cut -d ' ' -f 1)"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
 
-            # Prepare the SSH configuration required to access GitHub from the server.
-            mkdir -p "$HOME/.ssh"
-            chmod 700 "$HOME/.ssh"
-            test -f "$KEY_FILE"
-            chmod 600 "$KEY_FILE"
-            ssh-keyscan github.com >> "$HOME/.ssh/known_hosts"
-            chmod 644 "$HOME/.ssh/known_hosts"
-            export GIT_SSH_COMMAND="ssh -i $KEY_FILE -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+      - name: Configure verified SSH connection
+        env:
+          DEPLOY_HOST: ${{ secrets.HOST }}
+          DEPLOY_PORT: ${{ secrets.SSH_PORT || '22' }}
+          DEPLOY_USER: ${{ secrets.USERNAME }}
+          DEPLOY_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -Eeuo pipefail
+          : "${DEPLOY_HOST:?Missing HOST secret}"
+          : "${DEPLOY_USER:?Missing USERNAME secret}"
+          : "${DEPLOY_KEY:?Missing SSH_PRIVATE_KEY secret}"
+          : "${SSH_KNOWN_HOSTS:?Missing SSH_KNOWN_HOSTS secret}"
+          : "${DEPLOY_PATH:?Missing DEPLOY_PATH secret}"
 
-            # Recreate the release directory and sync the branch to deploy.
-            mkdir -p "$DEPLOY_PATH"
-            cd "$DEPLOY_PATH"
-            rm -rf release
-            if [ ! -d release/.git ]; then
-              git clone --branch "${{ github.ref_name }}" "$REPO_SSH_URL" release
-            else
-              git remote set-url origin "$REPO_SSH_URL"
-              git fetch origin "${{ github.ref_name }}"
-              git reset --hard "origin/${{ github.ref_name }}"
+          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]]
+          (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 ))
+          [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]
+          [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$DEPLOY_PATH" != *".."* ]]
+
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
+          ssh-keygen -l -f "$HOME/.ssh/known_hosts" >/dev/null
+
+          {
+            printf 'Host deploy-target\n'
+            printf '  HostName %s\n' "$DEPLOY_HOST"
+            printf '  Port %s\n' "$DEPLOY_PORT"
+            printf '  User %s\n' "$DEPLOY_USER"
+            printf '  IdentityFile %s\n' "$HOME/.ssh/deploy_key"
+            printf '  UserKnownHostsFile %s\n' "$HOME/.ssh/known_hosts"
+            printf '  IdentitiesOnly yes\n'
+            printf '  BatchMode yes\n'
+            printf '  StrictHostKeyChecking yes\n'
+            printf '  ConnectTimeout 15\n'
+            printf '  LogLevel ERROR\n'
+          } > "$HOME/.ssh/config"
+          chmod 600 "$HOME/.ssh/config"
+
+          ssh deploy-target "mkdir -p -- '$DEPLOY_PATH/releases'"
+
+      - name: Upload build artifact
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
+        run: |
+          set -Eeuo pipefail
+          scp "$RUNNER_TEMP/release.tgz" "deploy-target:$DEPLOY_PATH/.incoming-$RELEASE_ID.tgz"
+
+      - name: Activate release atomically
+        id: activate
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
+          EXPECTED_CHECKSUM: ${{ steps.package.outputs.checksum }}
+        run: |
+          set -Eeuo pipefail
+          ssh deploy-target bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" "$EXPECTED_CHECKSUM" <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+          umask 027
+
+          deploy_path="$1"
+          release_id="$2"
+          expected_checksum="$3"
+          releases_dir="$deploy_path/releases"
+          release_dir="$releases_dir/$release_id"
+          incoming="$deploy_path/.incoming-$release_id.tgz"
+          current_link="$deploy_path/release"
+          previous_link="$deploy_path/previous"
+
+          [[ "$deploy_path" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$deploy_path" != *".."* ]]
+          [[ "$release_id" =~ ^[0-9a-f]{40}-[0-9]+$ ]]
+          [[ "$expected_checksum" =~ ^[0-9a-f]{64}$ ]]
+          test -f "$incoming"
+          test ! -e "$release_dir"
+          printf '%s  %s\n' "$expected_checksum" "$incoming" | sha256sum --check --status
+
+          mkdir "$release_dir"
+          tar -xzf "$incoming" -C "$release_dir"
+          rm -f -- "$incoming"
+          test -f "$release_dir/dist/spa/index.html"
+
+          if [[ -L "$current_link" ]]; then
+            ln -sfn "$(readlink -f "$current_link")" "$previous_link"
+          elif [[ -d "$current_link" ]]; then
+            legacy_dir="$releases_dir/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
+            mv -- "$current_link" "$legacy_dir"
+            ln -sfn "$legacy_dir" "$previous_link"
+          elif [[ -e "$current_link" ]]; then
+            echo "Refusing to replace a non-directory deployment target" >&2
+            exit 1
+          fi
+
+          rollback_on_error() {
+            status=$?
+            trap - EXIT
+            if (( status != 0 )) && [[ -L "$previous_link" ]]; then
+              fallback_link="$deploy_path/.rollback-$release_id"
+              ln -s "$(readlink -f "$previous_link")" "$fallback_link"
+              mv -Tf -- "$fallback_link" "$current_link"
             fi
+            exit "$status"
+          }
+          trap rollback_on_error EXIT
 
-            # Install dependencies on the server and generate the final build.
-            cd "release"
-            npm install
-            npm run build
+          next_link="$deploy_path/.release-$release_id"
+          ln -s "$release_dir" "$next_link"
+          mv -Tf -- "$next_link" "$current_link"
+          test "$(readlink -f "$current_link")" = "$release_dir"
+          trap - EXIT
+          REMOTE_SCRIPT
+
+      - name: Verify deployed application
+        id: health
+        env:
+          HEALTHCHECK_URL: ${{ vars.DEPLOYMENT_URL }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$HEALTHCHECK_URL" ]]; then
+            if [[ "$GITHUB_REF_NAME" == 'release' ]]; then
+              echo "DEPLOYMENT_URL is required for production deployments." >&2
+              exit 1
+            fi
+            echo "DEPLOYMENT_URL is not configured; skipping the staging HTTP health check."
+            exit 0
+          fi
+          deployment_json="$(curl --fail --silent --show-error --location \
+            --retry 5 --retry-all-errors --retry-delay 3 --max-time 20 \
+            "${HEALTHCHECK_URL%/}/deployment.json?run=$GITHUB_RUN_ID")"
+          jq --exit-status --arg commit "$EXPECTED_COMMIT" \
+            '.commit == $commit' <<< "$deployment_json" >/dev/null
+
+      - name: Remove inactive releases older than 30 days
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -Eeuo pipefail
+          ssh deploy-target bash -s -- "$DEPLOY_PATH" <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+          deploy_path="$1"
+          releases_dir="$deploy_path/releases"
+          current_target="$(readlink -f "$deploy_path/release")"
+          previous_target="$(readlink -f "$deploy_path/previous" 2>/dev/null || true)"
+
+          find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -mtime +30 -print0 |
+            while IFS= read -r -d '' candidate; do
+              candidate_real="$(readlink -f "$candidate")"
+              [[ "$candidate_real" == "$releases_dir/"* ]] || continue
+              [[ "$candidate_real" == "$current_target" ]] && continue
+              [[ "$candidate_real" == "$previous_target" ]] && continue
+              rm -rf -- "$candidate_real"
+            done
+          REMOTE_SCRIPT
+
+      - name: Roll back failed health check
+        if: ${{ failure() && steps.activate.outcome == 'success' && steps.health.outcome == 'failure' }}
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
+        run: |
+          set -Eeuo pipefail
+          ssh deploy-target bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+          deploy_path="$1"
+          release_id="$2"
+          previous_link="$deploy_path/previous"
+          current_link="$deploy_path/release"
+          test -L "$previous_link"
+          rollback_link="$deploy_path/.health-rollback-$release_id"
+          ln -s "$(readlink -f "$previous_link")" "$rollback_link"
+          mv -Tf -- "$rollback_link" "$current_link"
+          REMOTE_SCRIPT
+
+      - name: Remove runner SSH credentials
+        if: ${{ always() }}
+        run: rm -f -- "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts" "$HOME/.ssh/config"

@@ -102,13 +102,13 @@
           <div class="sm:w-44">
             <button
               type="submit"
-              :disabled="!canSubmit"
+              :disabled="!canSubmit || isSubmitting"
               :class="[
                 'w-full py-3 rounded-xl text-white font-medium transition',
-                canSubmit ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed',
+                canSubmit && !isSubmitting ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed',
               ]"
             >
-              Crea Token
+              {{ isSubmitting ? 'Creazione…' : 'Crea Token' }}
             </button>
           </div>
         </div>
@@ -124,7 +124,7 @@ import type { UpdateTokenPayload } from 'src/modules/auth/interfaces/payloads';
 import type { EventBus } from 'quasar';
 import { handleStatus } from 'src/helpers/errors';
 import type { Globals } from 'src/interfaces/globals';
-import type { ServerResponse, ValidationError } from 'src/interfaces/response';
+import type { ServerResponse } from 'src/interfaces/response';
 
 const apiTokenName = ref<string>('');
 const selectedPermissions = ref<string[]>([]);
@@ -133,10 +133,11 @@ const customExpiry = ref<string>('');
 const tokenStore = inject<Globals>('globals')?.stores.token;
 const CAPABILITIES = ref<Capabilities | null>(null);
 const bus = inject<EventBus>('bus');
+const isSubmitting = ref(false);
 
 onMounted(async () => {
   CAPABILITIES.value = await tokenStore!.listCapabilities().catch((error: ServerResponse) => {
-    handleStatus(error, bus!);
+    handleStatus(error, bus);
     return null;
   });
 });
@@ -152,7 +153,7 @@ const computeExpiryIso = (): string | null => {
   const days = parseInt(expiryOption.value, 10);
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toLocaleDateString();
+  return d.toISOString();
 };
 
 const humanExpiry = computed(() => {
@@ -171,30 +172,30 @@ const minDatetime = computed(() => {
   const now = new Date();
   // format YYYY-MM-DDTHH:MM
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 });
 
 const handleSubmit = async () => {
+  if (!canSubmit.value || isSubmitting.value) return;
+  isSubmitting.value = true;
   const payload = <UpdateTokenPayload>{
     name: apiTokenName.value.trim(),
     capabilities: selectedPermissions.value.slice(),
     expiration: computeExpiryIso(),
   };
 
-  await tokenStore!
-    .addToken(payload)
-    .then(() => {
+  try {
+    await tokenStore!.addToken(payload);
       bus?.emit('success:general', { title: 'Token creato con successo!', button: 'Chiudi' });
       bus?.emit('refresh:tokens');
-    })
-    .catch((error: ServerResponse | ValidationError) => {
-      handleStatus(error, bus!);
-      return;
-    });
-
-  apiTokenName.value = '';
-  selectedPermissions.value = [];
-  expiryOption.value = '30';
-  customExpiry.value = '';
+    apiTokenName.value = '';
+    selectedPermissions.value = [];
+    expiryOption.value = '30';
+    customExpiry.value = '';
+  } catch (error) {
+      handleStatus(error, bus);
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 </script>

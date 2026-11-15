@@ -106,7 +106,7 @@
 <script setup lang="ts">
 import { ref, onMounted, inject, onBeforeUnmount } from 'vue';
 import type { TokenType } from '../../interfaces/token';
-import type { EventBus } from 'quasar';
+import { useQuasar, type EventBus } from 'quasar';
 import { handleStatus } from 'src/helpers/errors';
 import type { Globals } from 'src/interfaces/globals';
 import type { ServerResponse } from 'src/interfaces/response';
@@ -117,6 +117,7 @@ const error = ref<string | null>(null);
 const showTokenId = ref<string | null>(null);
 const tokenStore = inject<Globals>('globals')?.stores.token;
 const bus = inject<EventBus>('bus');
+const $q = useQuasar();
 
 const fetchTokens = async () => {
   loading.value = true;
@@ -127,7 +128,7 @@ const fetchTokens = async () => {
       loading.value = false;
     })
     .catch((error: ServerResponse) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
       return null;
     });
 };
@@ -151,12 +152,26 @@ const toggleShow = (id: string) => {
   showTokenId.value = showTokenId.value === id ? null : id;
 };
 
-const copyToken = (text: string | null | undefined) => {
+const copyToken = async (text: string | null | undefined) => {
   if (!text) return;
-  navigator.clipboard?.writeText(text).catch(() => { });
+  try {
+    await navigator.clipboard.writeText(text);
+    bus?.emit('success:general', { title: 'Token copiato negli appunti.', button: 'Chiudi' });
+  } catch (error) {
+    handleStatus(error, bus);
+  }
 };
 
-const revoke = async (id: string) => {
+const revoke = (id: string) => {
+  $q.dialog({
+    title: 'Revoca token',
+    message: 'Le integrazioni che usano questo token smetteranno immediatamente di funzionare.',
+    cancel: true,
+    persistent: true,
+  }).onOk(() => void performRevoke(id));
+};
+
+const performRevoke = async (id: string) => {
   await tokenStore!
     .deleteToken(id)
     .then(() => {
@@ -164,7 +179,7 @@ const revoke = async (id: string) => {
       void fetchTokens();
     })
     .catch((error: ServerResponse) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     });
 };
 

@@ -12,7 +12,7 @@ type UpdateUserPayload = Omit<Partial<UserDetails>, 'id' | 'user_id' | 'uid' | '
 
 export const useAccountStore = defineStore('AccountStore', {
   state: (): State => ({
-    myUser: {} as UserType,
+    myUser: null,
   }),
   getters: {
     pageInfo(): ApiAccountEndpoints {
@@ -31,10 +31,7 @@ export const useAccountStore = defineStore('AccountStore', {
       return response
         .then((res) => {
           const content = res.data?.body?.content as UserType | undefined;
-          if (content) {
-            this.myUser!.user = content.user;
-            this.myUser!.details = content.details;
-          }
+          if (content) this.myUser = content;
           return this.myUser;
         })
         .catch((err) => {
@@ -47,8 +44,10 @@ export const useAccountStore = defineStore('AccountStore', {
 
       const response = axios.patch<ServerResponse>(this.pageInfo.STORE_EDITME, updatedData);
       return response
-        .then(() => {
-          return this.myUser?.details ?? null;
+        .then((res) => {
+          const content = res.data?.body?.content as UserDetails | undefined;
+          if (content && this.myUser) this.myUser.details = content;
+          return content ?? this.myUser?.details ?? null;
         })
         .catch((err) => {
           if (axios.isAxiosError(err)) throw err.response?.data ?? err;
@@ -69,7 +68,7 @@ export const useAccountStore = defineStore('AccountStore', {
       return response
         .then((res) => {
           const content = res.data?.body?.content as string | undefined;
-
+          if (content && this.myUser) this.myUser.details.thumbnail = content;
           return content ?? null;
         })
         .catch((err) => {

@@ -1,10 +1,6 @@
 import axios from 'axios';
-import type {
-  Router,
-  NavigationGuardNext,
-  RouteLocationNormalized,
-  RouteRecordNormalized,
-} from 'vue-router';
+import type { InternalAxiosRequestConfig } from 'axios';
+import type { Router, RouteRecordNormalized } from 'vue-router';
 import { useAuthStore } from 'src/modules/auth/stores/login';
 
 export default ({ store, router }: { store: any; router: Router }) => {
@@ -13,47 +9,97 @@ export default ({ store, router }: { store: any; router: Router }) => {
     refreshToken: string | null | undefined,
     apiToken: string | null | undefined,
   ): void => {
-    if (token || apiToken) {
-      axios.defaults.headers.common.Authorization = `Bearer ${token}`;
-      axios.defaults.headers.common['X-Refresh-Token'] = `${refreshToken}`;
-      axios.defaults.headers.common['X-Api-Token'] = `${apiToken}`;
-    } else {
-      delete axios.defaults.headers.common.Authorization;
-      delete axios.defaults.headers.common['X-Refresh-Token'];
-      delete axios.defaults.headers.common['X-Api-Token'];
-    }
+    const headers = axios.defaults.headers.common;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    else delete headers.Authorization;
+    if (refreshToken) headers['X-Refresh-Token'] = refreshToken;
+    else delete headers['X-Refresh-Token'];
+    if (apiToken) headers['X-Api-Token'] = apiToken;
+    else delete headers['X-Api-Token'];
   };
 
-  router.beforeEach(
-    (
-      to: RouteLocationNormalized,
-      _from: RouteLocationNormalized,
-      next: NavigationGuardNext,
-    ) => {
-      const authGuarded = to.matched.some((record: RouteRecordNormalized) =>
-        Boolean(record.meta?.authGuarded),
-      );
+  router.beforeEach(async (to) => {
+    const auth = useAuthStore(store);
+    const authGuarded = to.matched.some((record: RouteRecordNormalized) =>
+      Boolean(record.meta?.authGuarded),
+    );
 
-      const currentToken = useAuthStore(store).getToken;
-      const currentRefreshToken = useAuthStore(store).getRefreshToken;
-      const currentApiToken = useAuthStore(store).apiToken;
-      if (currentToken) {
-        setAuthorization(currentToken, currentRefreshToken, currentApiToken);
+    if (authGuarded && !auth.getToken && auth.getRefreshToken) {
+      try {
+        await auth.refreshToken();
+      } catch {
+        auth.clearSession();
       }
-
-      if (authGuarded && !currentToken) {
-        next('/login');
-      } else {
-        next();
-      }
-    },
-  );
-
-  axios.interceptors.response.use(null, async (error: any) => {
-    if (error?.response?.status === 401) {
-      await router.push('/login');
     }
 
-    return Promise.reject(error);
+    setAuthorization(auth.getToken, auth.getRefreshToken, auth.apiToken);
+    if (authGuarded && !auth.getToken) return { name: 'LoginPage', query: { redirect: to.fullPath } };
+    if (to.name === 'LoginPage' && auth.getToken) return { name: 'IndexPage' };
+    return true;
+  });
+
+  let refreshPromise: Promise<string | null> | null = null;
+  type RetryableRequestConfig = InternalAxiosRequestConfig & { _authRetry?: boolean };
+
+  axios.interceptors.response.use(null, async (error: unknown) => {
+    if (!axios.isAxiosError(error) || error.response?.status !== 401) {
+      return Promise.reject(error);
+    }
+
+    const auth = useAuthStore(store);
+    const request = error.config as RetryableRequestConfig | undefined;
+    if (request?._authRetry) {
+      auth.clearSession();
+      setAuthorization(null, null, null);
+      if (router.currentRoute.value.name !== 'LoginPage') await router.push('/login');
+      return Promise.reject(error);
+    }
+    if (
+      !request ||
+      request.url === auth.pageInfo.STORE_REFRESHTOKEN ||
+      request.url === auth.pageInfo.STORE_LOGIN
+    ) {
+      return Promise.reject(error);
+    }
+
+    request._authRetry = true;
+
+    const hasNewToken =
+      auth.getToken && request.headers.get('Authorization') !== `Bearer ${auth.getToken}`;
+
+    if (!refreshPromise && !hasNewToken) {
+      refreshPromise = auth
+        .refreshToken()
+        .then((token) => {
+          if (!token) throw new Error('Nessun token di accesso ricevuto dal refresh');
+          setAuthorization(token, auth.getRefreshToken, auth.apiToken);
+          return token;
+        })
+        .catch(async (refreshError: unknown) => {
+          auth.clearSession();
+          setAuthorization(null, null, null);
+          if (router.currentRoute.value.name !== 'LoginPage') await router.push('/login');
+          throw refreshError;
+        })
+        .finally(() => {
+          refreshPromise = null;
+        });
+    }
+
+    await refreshPromise;
+
+    request.headers.set('Authorization', `Bearer ${auth.getToken}`);
+    if (auth.getRefreshToken) {
+      request.headers.set('X-Refresh-Token', auth.getRefreshToken);
+    } else {
+      request.headers.delete('X-Refresh-Token');
+    }
+    if (auth.apiToken) {
+      request.headers.set('X-Api-Token', auth.apiToken);
+    } else {
+      request.headers.delete('X-Api-Token');
+    }
+
+    return axios.request(request);
   });
 };

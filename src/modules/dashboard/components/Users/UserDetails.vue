@@ -147,7 +147,7 @@ const saveChanges = () => {
       });
     })
     .catch((error) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
     })
     .finally(() => {
       closeModal();

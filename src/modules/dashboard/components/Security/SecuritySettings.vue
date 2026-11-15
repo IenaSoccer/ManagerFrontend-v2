@@ -71,9 +71,10 @@
 
         <button
           type="submit"
+          :disabled="isSaving"
           class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition"
         >
-          Salva
+          {{ isSaving ? 'Salvataggio…' : 'Salva' }}
         </button>
       </form>
     </div>
@@ -92,6 +93,7 @@ const oldPassword = ref('');
 const newPassword = ref('');
 const confirmNewPassword = ref('');
 const bus = inject<EventBus>('bus');
+const isSaving = ref(false);
 
 const handleSubmit = () => {};
 
@@ -100,14 +102,21 @@ const handlePasswordChange = () => {
     bus?.emit('error:general', 'Le nuove password non corrispondono');
     return;
   }
+  if (isSaving.value) return;
+  isSaving.value = true;
 
   authStore
     ?.changePassword(oldPassword.value, newPassword.value, confirmNewPassword.value)
     .then(() => {
       bus?.emit('success:general', { title: 'Password cambiata con successo!', button: 'Chiudi' });
+      oldPassword.value = '';
+      newPassword.value = '';
+      confirmNewPassword.value = '';
     })
     .catch((error: ServerResponse | ValidationError) => {
-      handleStatus(error, bus!);
+      handleStatus(error, bus);
+    }).finally(() => {
+      isSaving.value = false;
     });
 };
 </script>
