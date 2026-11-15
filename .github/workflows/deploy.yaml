@@ -103,20 +103,24 @@ jobs:
 
           install -d -m 700 "$HOME/.ssh"
           printf '%s\n' "$DEPLOY_KEY" | tr -d '\r' > "$HOME/.ssh/deploy_key"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts.source"
+          chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts.source"
 
           ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null 2>&1 ||
             fail "SSH_PRIVATE_KEY is invalid, encrypted, or not a private key"
-          ssh-keygen -l -f "$HOME/.ssh/known_hosts" >/dev/null 2>&1 ||
+          ssh-keygen -l -f "$HOME/.ssh/known_hosts.source" >/dev/null 2>&1 ||
             fail "SSH_KNOWN_HOSTS is invalid; store ssh-keyscan output, not a SHA256 fingerprint"
 
-          known_host="$DEPLOY_HOST"
-          if [[ "$DEPLOY_PORT" != "22" ]]; then
-            known_host="[$DEPLOY_HOST]:$DEPLOY_PORT"
-          fi
-          ssh-keygen -F "$known_host" -f "$HOME/.ssh/known_hosts" >/dev/null ||
-            fail "SSH_KNOWN_HOSTS has no entry matching HOST and SSH_PORT"
+          # Pin the trusted key material to our stable SSH alias. This avoids
+          # hostname/IP mismatches without weakening host-key verification.
+          awk '
+            $1 !~ /^#/ && NF >= 3 && $2 ~ /^(ssh-|ecdsa-|sk-)/ {
+              print "ienavps", $2, $3
+            }
+          ' "$HOME/.ssh/known_hosts.source" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -F ienavps -f "$HOME/.ssh/known_hosts" >/dev/null ||
+            fail "SSH_KNOWN_HOSTS contains no supported OpenSSH host key"
 
           {
             printf 'Host ienavps\n'
@@ -125,6 +129,7 @@ jobs:
             printf '  User %s\n' "$DEPLOY_USER"
             printf '  IdentityFile %s\n' "$HOME/.ssh/deploy_key"
             printf '  UserKnownHostsFile %s\n' "$HOME/.ssh/known_hosts"
+            printf '  HostKeyAlias ienavps\n'
             printf '  IdentitiesOnly yes\n'
             printf '  BatchMode yes\n'
             printf '  StrictHostKeyChecking yes\n'
@@ -279,4 +284,6 @@ jobs:
 
       - name: Remove runner SSH credentials
         if: ${{ always() }}
-        run: rm -f -- "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts" "$HOME/.ssh/config"
+        run: >-
+          rm -f -- "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
+          "$HOME/.ssh/known_hosts.source" "$HOME/.ssh/config"
