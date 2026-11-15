@@ -5,5 +5,5 @@
 </template>
 
 <script setup lang="ts">
-import AccountInfo from 'src/modules/dashboard/components/Account/AccountInfo.vue';
+import AccountInfo from '@/modules/dashboard/components/Account/AccountInfo.vue';
 </script>

@@ -16,6 +16,6 @@
 </template>
 
 <script setup lang="ts" name="UsersPage">
-import UsersList from 'src/modules/dashboard/components/Users/UsersList.vue';
+import UsersList from '@/modules/dashboard/components/Users/UsersList.vue';
 import AddUser from '../components/Users/AddUser.vue';
 </script>

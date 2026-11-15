@@ -99,10 +99,10 @@
     </div>
 </template>
 <script setup lang="ts">
-import type { Globals } from 'src/interfaces/globals';
+import type { Globals } from '@/interfaces/globals';
 import { inject, onMounted, ref } from 'vue';
 import type { EventBus } from 'quasar';
-import { handleStatus } from 'src/helpers/errors';
+import { handleStatus } from '@/helpers/errors';
 import type { Metrics } from '../../interfaces/metrics';
 
 const globals = inject('globals') as Globals;

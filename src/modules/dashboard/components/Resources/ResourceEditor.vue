@@ -134,9 +134,9 @@
 import { defineAsyncComponent, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Resource } from '../../interfaces/resources';
 import type { EventBus } from 'quasar';
-import { handleStatus } from 'src/helpers/errors';
-import type { Globals } from 'src/interfaces/globals';
-import type { ServerResponse, ValidationError } from 'src/interfaces/response';
+import { handleStatus } from '@/helpers/errors';
+import type { Globals } from '@/interfaces/globals';
+import type { ServerResponse, ValidationError } from '@/interfaces/response';
 
 const globals = inject('globals') as Globals;
 const resourcesStore = globals.stores.resources;
@@ -223,7 +223,7 @@ onMounted(() => {
         return;
       }
 
-      resource.value!.content.data = selectedAttachments as string[];
+      resource.value!.content.data = selectedAttachments;
     },
   );
 

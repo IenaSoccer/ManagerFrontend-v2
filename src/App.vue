@@ -8,5 +8,5 @@
 </template>
 
 <script setup lang="ts">
-import WBanner from 'components/Widgets/WBanner.vue';
+import WBanner from '@/components/Widgets/WBanner.vue';
 </script>

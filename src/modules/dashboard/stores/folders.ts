@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 import type { ApiFolderEndpoints } from '../interfaces/endpoints';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { ServerResponse } from '@/interfaces/response';
 import type { Folder } from '../interfaces/folders';
 
 interface State {
@@ -19,7 +19,7 @@ export const useFoldersStore = defineStore('FoldersStore', {
   }),
   getters: {
     pageInfo(): ApiFolderEndpoints {
-      const base = String(process.env.API_URL ?? '#');
+      const base = String(import.meta.env.QCLI_API_URL ?? '#');
       return {
         STORE_LISTFOLDERS: (per_page?: number) =>
           `${base}/folders${per_page ? `?per_page=${per_page}` : ''}`,

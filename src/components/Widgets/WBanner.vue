@@ -9,7 +9,7 @@
 
 <script setup lang="ts">
 import type { EventBus } from 'quasar';
-import type { AlertPayload } from 'src/interfaces/alerts';
+import type { AlertPayload } from '@/interfaces/alerts';
 import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 
 type AlertKind = 'info' | 'warning' | 'error' | 'success';

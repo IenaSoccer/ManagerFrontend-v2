@@ -1,5 +1,5 @@
 import type { EventBus } from 'quasar';
-import type { ServerResponse, ValidationError } from 'src/interfaces/response';
+import type { ServerResponse, ValidationError } from '@/interfaces/response';
 
 const statusMappings: Record<number, string> = {
   401: 'error:unauthorized',

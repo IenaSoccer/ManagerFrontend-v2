@@ -120,11 +120,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, inject } from 'vue';
 import type { Capabilities } from '../../interfaces/token';
-import type { UpdateTokenPayload } from 'src/modules/auth/interfaces/payloads';
+import type { UpdateTokenPayload } from '@/modules/auth/interfaces/payloads';
 import type { EventBus } from 'quasar';
-import { handleStatus } from 'src/helpers/errors';
-import type { Globals } from 'src/interfaces/globals';
-import type { ServerResponse } from 'src/interfaces/response';
+import { handleStatus } from '@/helpers/errors';
+import type { Globals } from '@/interfaces/globals';
+import type { ServerResponse } from '@/interfaces/response';
 
 const apiTokenName = ref<string>('');
 const selectedPermissions = ref<string[]>([]);

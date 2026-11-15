@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import axios from 'axios';
 import type { ApiAuthEndpoints } from '../interfaces/endpoints';
 import type { UserType } from '../interfaces/user';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { ServerResponse } from '@/interfaces/response';
 import type { LoginPayload, SessionType } from '../interfaces/payloads';
 
 interface State {
@@ -49,7 +49,7 @@ export const useAuthStore = defineStore('AuthStore', {
   }),
   getters: {
     pageInfo(): ApiAuthEndpoints {
-      const base = String(process.env.API_URL ?? '#');
+      const base = String(import.meta.env.QCLI_API_URL ?? '#');
       return {
         STORE_EXTRA_ME: base + '/users/me',
         STORE_LOGIN: base + '/auth/login',

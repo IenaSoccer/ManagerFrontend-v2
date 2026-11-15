@@ -39,9 +39,9 @@
 <script setup lang="ts">
 import type { EventBus } from 'quasar';
 import { ref, inject } from 'vue';
-import type { Globals } from 'src/interfaces/globals';
+import type { Globals } from '@/interfaces/globals';
 import type { AddUserPayload } from '../../stores/users';
-import { handleStatus } from 'src/helpers/errors';
+import { handleStatus } from '@/helpers/errors';
 
 const bus = inject<EventBus>('bus');
 const globals = inject('globals') as Globals;

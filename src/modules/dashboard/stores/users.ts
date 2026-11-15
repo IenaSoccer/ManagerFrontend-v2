@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 import type { ApiUserEndpoints } from '../interfaces/endpoints';
-import type { UserDetails, UserInfo, UserType } from 'src/modules/auth/interfaces/user';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { UserDetails, UserInfo, UserType } from '@/modules/auth/interfaces/user';
+import type { ServerResponse } from '@/interfaces/response';
 
 interface State {
   users: UserInfo[] | null;
@@ -28,7 +28,7 @@ export const useUsersStore = defineStore('UsersStore', {
   }),
   getters: {
     pageInfo(): ApiUserEndpoints {
-      const base = String(process.env.API_URL ?? '#');
+      const base = String(import.meta.env.QCLI_API_URL ?? '#');
       return {
         STORE_LISTUSERS: (per_page: number = 10, page: number = 1) =>
           `${base}/users?${per_page ? `per_page=${per_page}` : ''}${page ? `&page=${page}` : ''}`,

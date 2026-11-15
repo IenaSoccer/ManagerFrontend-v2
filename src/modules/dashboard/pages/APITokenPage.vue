@@ -13,6 +13,6 @@
   </q-page>
 </template>
 <script setup lang="ts">
-import APITokenHandler from 'src/modules/dashboard/components/API/APITokenHandler.vue';
+import APITokenHandler from '@/modules/dashboard/components/API/APITokenHandler.vue';
 import APITokenList from '../components/API/APITokenList.vue';
 </script>

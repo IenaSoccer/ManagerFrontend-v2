@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 import type { ApiResourceEndpoints } from '../interfaces/endpoints';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { ServerResponse } from '@/interfaces/response';
 import type { Resource } from '../interfaces/resources';
 
 interface State {
@@ -16,7 +16,7 @@ export const useResourcesStore = defineStore('ResourcesStore', {
   }),
   getters: {
     pageInfo(): ApiResourceEndpoints {
-      const base = String(process.env.API_URL ?? '#');
+      const base = String(import.meta.env.QCLI_API_URL ?? '#');
       return {
         STORE_LISTRESOURCES: base + '/resources',
         STORE_GETRESOURCE: (resourceId: string, per_page?: number) =>

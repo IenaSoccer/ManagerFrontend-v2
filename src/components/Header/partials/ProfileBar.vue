@@ -17,14 +17,14 @@
 </template>
 
 <script setup lang="ts">
-import { roles } from 'src/helpers/roles';
-import type { Globals } from 'src/interfaces/globals';
+import { roles } from '@/helpers/roles';
+import type { Globals } from '@/interfaces/globals';
 import { computed, inject } from 'vue';
 
 const globals = inject('globals') as Globals;
 const authStore = globals.stores.auth;
 const computedThumbnail = computed(() => {
-  const baseURL = String(process.env.ATTACHMENTS_URL ?? '');
+  const baseURL = String(import.meta.env.QCLI_ATTACHMENTS_URL ?? '');
   return authStore.currentUser?.details.thumbnail
     ? `${baseURL}/profiles/${authStore.currentUser.details.thumbnail}`
     : `${baseURL}/avatar.png`;

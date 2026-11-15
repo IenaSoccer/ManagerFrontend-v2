@@ -14,14 +14,14 @@
 </template>
 
 <script setup lang="ts">
-import TopHeader from 'src/components/Header/TopHeader.vue';
-import SideBar from 'src/components/SideBar.vue';
+import TopHeader from '@/components/Header/TopHeader.vue';
+import SideBar from '@/components/SideBar.vue';
 
 import { inject, onBeforeUnmount, onMounted } from 'vue';
 import type { EventBus } from 'quasar';
-import type { Globals } from 'src/interfaces/globals';
-import { handleStatus } from 'src/helpers/errors';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { Globals } from '@/interfaces/globals';
+import { handleStatus } from '@/helpers/errors';
+import type { ServerResponse } from '@/interfaces/response';
 
 const bus = inject<EventBus>('bus');
 const toggleSidebar = () => {

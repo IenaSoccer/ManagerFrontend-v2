@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 import type { ApiAccountEndpoints } from '../interfaces/endpoints';
-import type { UserDetails, UserType } from 'src/modules/auth/interfaces/user';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { UserDetails, UserType } from '@/modules/auth/interfaces/user';
+import type { ServerResponse } from '@/interfaces/response';
 
 interface State {
   myUser: UserType | null;
@@ -16,7 +16,7 @@ export const useAccountStore = defineStore('AccountStore', {
   }),
   getters: {
     pageInfo(): ApiAccountEndpoints {
-      const base = String(process.env.API_URL ?? '#');
+      const base = String(import.meta.env.QCLI_API_URL ?? '#');
       return {
         STORE_GETME: base + '/users/me',
         STORE_EDITME: base + '/users/me',

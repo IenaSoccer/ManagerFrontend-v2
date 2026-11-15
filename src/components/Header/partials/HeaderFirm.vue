@@ -3,7 +3,7 @@
   <q-img
     @click="goToRoot"
     class="w-12 object-contain transform hover:scale-110 transition transition-all cursor-pointer"
-    src="~assets/iena-logo.png"
+    src="~@/assets/iena-logo.png"
   />
 </template>
 <style scoped>

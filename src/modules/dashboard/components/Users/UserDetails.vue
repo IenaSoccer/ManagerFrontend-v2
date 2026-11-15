@@ -90,8 +90,8 @@
 <script setup lang="ts">
 import type { EventBus } from 'quasar';
 import { ref, inject, computed, onMounted, onBeforeUnmount } from 'vue';
-import type { Globals } from 'src/interfaces/globals';
-import { handleStatus } from 'src/helpers/errors';
+import type { Globals } from '@/interfaces/globals';
+import { handleStatus } from '@/helpers/errors';
 import type { UpdateUserPayload } from '../../stores/users';
 
 const bus = inject<EventBus>('bus');
@@ -103,7 +103,7 @@ const formData = ref<UpdateUserPayload>();
 const userId = ref<string>('');
 const isSaveButtonDisabled = ref(false);
 const computedThumbnail = computed(() => {
-  const baseURL = String(process.env.ATTACHMENTS_URL ?? '');
+  const baseURL = String(import.meta.env.QCLI_ATTACHMENTS_URL ?? '');
   return formData.value?.details.thumbnail
     ? `${baseURL}/profiles/${formData.value.details.thumbnail}`
     : `${baseURL}/avatar.png`;

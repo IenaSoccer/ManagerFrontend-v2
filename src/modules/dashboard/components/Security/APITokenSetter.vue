@@ -42,7 +42,7 @@
 <script setup lang="ts">
 import { inject, ref } from 'vue';
 import type { EventBus } from 'quasar';
-import type { Globals } from 'src/interfaces/globals';
+import type { Globals } from '@/interfaces/globals';
 
 const apiToken = ref('');
 const showToken = ref(false);

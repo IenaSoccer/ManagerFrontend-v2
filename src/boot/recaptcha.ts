@@ -1,8 +1,8 @@
-import { boot } from 'quasar/wrappers';
+import { defineBoot } from '#q-app';
 import type { App } from 'vue';
 import { install } from 'vue3-recaptcha-v2';
 
-export default boot(({ app }: { app: App }) => {
+export default defineBoot(({ app }: { app: App }) => {
   app.provide(
     'recaptcha',
     install(app, {

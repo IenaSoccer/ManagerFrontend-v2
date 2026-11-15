@@ -7,5 +7,5 @@
 </template>
 
 <script setup lang="ts">
-import StatisticsViewer from 'src/modules/dashboard/components/Overview/StatisticsViewer.vue';
+import StatisticsViewer from '@/modules/dashboard/components/Overview/StatisticsViewer.vue';
 </script>

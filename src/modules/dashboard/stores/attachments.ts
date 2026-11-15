@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 import type { ApiAttachmentsEndpoints } from '../interfaces/endpoints';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { ServerResponse } from '@/interfaces/response';
 import type { Attachment, AttachmentType } from '../interfaces/attachments';
 
 interface State {
@@ -19,7 +19,7 @@ export const useAttachmentsStore = defineStore('AttachmentsStore', {
   }),
   getters: {
     pageInfo(): ApiAttachmentsEndpoints {
-      const base = String(process.env.API_URL ?? '#');
+      const base = String(import.meta.env.QCLI_API_URL ?? '#');
       return {
         STORE_GETATTACHMENTS: (folderId: string, per_page: number = 10, page: number = 1) =>
           `${base}/attachments/${folderId}?${`per_page=${per_page}`}${`&page=${page}`}`,

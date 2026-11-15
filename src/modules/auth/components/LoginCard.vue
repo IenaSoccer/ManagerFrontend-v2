@@ -42,7 +42,7 @@
       <div class="flex items-center gap-3 mb-3">
         <div class="flex items-center justify-center font-bold text-black">
         </div>
-        <q-img src="~assets/iena-logo.png" class="w-12 object-contain" />
+        <q-img src="~@/assets/iena-logo.png" class="w-12 object-contain" />
         <div>
           <div class="text-lg font-extrabold tracking-tight">Benvenuto</div>
           <div class="text-xs text-white/70">Accedi per continuare sulla piattaforma</div>
@@ -94,11 +94,11 @@
 <script setup lang="ts">
 import { inject, ref } from 'vue';
 import type { LoginPayload } from '../interfaces/payloads';
-import type { ServerResponse, ValidationError } from 'src/interfaces/response';
+import type { ServerResponse, ValidationError } from '@/interfaces/response';
 import type { EventBus } from 'quasar';
-import { handleStatus } from 'src/helpers/errors';
+import { handleStatus } from '@/helpers/errors';
 import { useRoute, useRouter } from 'vue-router';
-import type { Globals } from 'src/interfaces/globals';
+import type { Globals } from '@/interfaces/globals';
 import { RecaptchaV2 } from 'vue3-recaptcha-v2';
 
 const handleLoadCallback = (response: unknown) => {

@@ -82,9 +82,9 @@
 </template>
 <script setup lang="ts">
 import type { EventBus } from 'quasar';
-import { handleStatus } from 'src/helpers/errors';
-import type { Globals } from 'src/interfaces/globals';
-import type { ServerResponse, ValidationError } from 'src/interfaces/response';
+import { handleStatus } from '@/helpers/errors';
+import type { Globals } from '@/interfaces/globals';
+import type { ServerResponse, ValidationError } from '@/interfaces/response';
 import { inject, ref } from 'vue';
 
 const twoFactorAuthEnabled = ref(false);

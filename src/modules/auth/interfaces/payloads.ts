@@ -1,4 +1,4 @@
-import type { TokenType } from 'src/modules/dashboard/interfaces/token';
+import type { TokenType } from '@/modules/dashboard/interfaces/token';
 import type { UserType } from './user';
 
 type LoginPayload = Omit<UserType['user'], 'id' | 'role' | 'api_token' | 'user_uuid'> & {

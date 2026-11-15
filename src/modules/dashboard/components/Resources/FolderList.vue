@@ -55,11 +55,11 @@
 </template>
 <script setup lang="ts">
 import { computed, inject, onMounted, ref } from 'vue';
-import { handleStatus } from 'src/helpers/errors';
+import { handleStatus } from '@/helpers/errors';
 import { useQuasar, type EventBus } from 'quasar';
 import type { Folder } from '../../interfaces/folders';
-import type { Globals } from 'src/interfaces/globals';
-import type { ServerResponse, ValidationError } from 'src/interfaces/response';
+import type { Globals } from '@/interfaces/globals';
+import type { ServerResponse, ValidationError } from '@/interfaces/response';
 
 type FormattedFolder = Folder & { children?: FormattedFolder[] };
 

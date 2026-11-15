@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 import type { ApiTokenEndpoints } from '../interfaces/endpoints';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { ServerResponse } from '@/interfaces/response';
 import type { Capabilities, TokenType } from '../interfaces/token';
-import type { UpdateTokenPayload } from 'src/modules/auth/interfaces/payloads';
+import type { UpdateTokenPayload } from '@/modules/auth/interfaces/payloads';
 
 interface State {
   capabilities: Capabilities | null;
@@ -17,7 +17,7 @@ export const useTokenStore = defineStore('TokenStore', {
   }),
   getters: {
     pageInfo(): ApiTokenEndpoints {
-      const base = String(process.env.API_URL ?? '#');
+      const base = String(import.meta.env.QCLI_API_URL ?? '#');
       return {
         STORE_LISTTOKENS: (tokenId: string | null) =>
           `${base}/token${tokenId ? `/${tokenId}` : ''}`,

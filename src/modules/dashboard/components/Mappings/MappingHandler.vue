@@ -74,10 +74,10 @@
 import { inject, onMounted, ref } from 'vue';
 import type { Mappings } from '../../interfaces/mappings';
 import type { Folder } from '../../interfaces/folders';
-import { handleStatus } from 'src/helpers/errors';
+import { handleStatus } from '@/helpers/errors';
 import type { EventBus } from 'quasar';
-import type { Globals } from 'src/interfaces/globals';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { Globals } from '@/interfaces/globals';
+import type { ServerResponse } from '@/interfaces/response';
 type FolderItem = {
   id: string;
   name: string;

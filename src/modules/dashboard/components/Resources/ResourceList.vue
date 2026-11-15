@@ -45,12 +45,12 @@
 </template>
 <script setup lang="ts" name="ResourceList">
 import { inject, onBeforeUnmount, onMounted, ref } from 'vue';
-import { handleStatus } from 'src/helpers/errors';
+import { handleStatus } from '@/helpers/errors';
 import { useQuasar, type EventBus } from 'quasar';
 import type { Resource } from '../../interfaces/resources';
-import type { Globals } from 'src/interfaces/globals';
+import type { Globals } from '@/interfaces/globals';
 import type { AttachmentType } from '../../interfaces/attachments';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { ServerResponse } from '@/interfaces/response';
 
 const globals = inject('globals') as Globals;
 const resourcesStore = globals.stores.resources;
@@ -75,7 +75,7 @@ const computeThumbnails = async (folderId: string) => {
         resources.value
           .map((resource) => [resource.id, byId.get(resource.thumbnail)])
           .filter((entry): entry is [string, string] => Boolean(entry[1]))
-          .map(([id, path]) => [id, `${String(process.env.ATTACHMENTS_URL ?? '#')}/attachments/${path}`]),
+          .map(([id, path]) => [id, `${String(import.meta.env.QCLI_ATTACHMENTS_URL ?? '#')}/attachments/${path}`]),
       );
     })
     .catch(() => {

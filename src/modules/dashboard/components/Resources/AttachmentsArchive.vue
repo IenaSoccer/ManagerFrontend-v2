@@ -143,11 +143,11 @@
 <script setup lang="ts" name="AttachmentsArchive">
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { UpdateAttachmentPayload } from '../../stores/attachments';
-import { handleStatus } from 'src/helpers/errors';
+import { handleStatus } from '@/helpers/errors';
 import { useQuasar, type EventBus } from 'quasar';
 import type { AttachmentType } from '../../interfaces/attachments';
-import type { Globals } from 'src/interfaces/globals';
-import type { ServerResponse, ValidationError } from 'src/interfaces/response';
+import type { Globals } from '@/interfaces/globals';
+import type { ServerResponse, ValidationError } from '@/interfaces/response';
 
 const globals = inject('globals') as Globals;
 const attachmentsStore = globals.stores.attachments;
@@ -172,7 +172,7 @@ const upload = ref({
   isUploading: false,
   attachmentFiles: [] as File[],
   attachmentPreviews: [] as { file: File; preview: string }[],
-  newAttachment: { name: '', description: '' } as UpdateAttachmentPayload,
+  newAttachment: { name: '', description: '' },
 });
 
 const editing = ref({
@@ -274,7 +274,7 @@ const loadAttachments = async () => {
     attachmentsData.value.attachments = response ?? [];
     attachmentsData.value.total = attachmentsStore.total;
   } catch (error) {
-    handleStatus(error as ServerResponse | ValidationError, bus);
+    handleStatus(error, bus);
   } finally {
     setLoadedState(true);
   }
@@ -351,7 +351,7 @@ const removeAttachment = (index: number) => {
 };
 
 const computedThumbnail = (path: string) => {
-  const baseURL = String(process.env.ATTACHMENTS_URL ?? '#');
+  const baseURL = String(import.meta.env.QCLI_ATTACHMENTS_URL ?? '#');
   return `${baseURL}/attachments/${path}`;
 };
 
@@ -430,7 +430,7 @@ const deleteAttachment = async (folderId: string, attachmentId: string) => {
 
     await reloadAfterDelete();
   } catch (error) {
-    handleStatus(error as ServerResponse, bus);
+    handleStatus(error, bus);
   }
 };
 
@@ -459,7 +459,7 @@ const deleteSelected = async () => {
 
     await reloadAfterDelete();
   } catch (error) {
-    handleStatus(error as ServerResponse, bus);
+    handleStatus(error, bus);
   }
 };
 

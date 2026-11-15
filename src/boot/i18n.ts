@@ -1,7 +1,7 @@
-import { boot } from 'quasar/wrappers';
-import type { I18nConfig } from 'src/interfaces/i18n';
+import { defineBoot } from '#q-app';
+import type { I18nConfig } from '@/interfaces/i18n';
 
-export default boot(({ app }) => {
+export default defineBoot(({ app }) => {
   const i18n: I18nConfig = {
     auth: {
       login: {

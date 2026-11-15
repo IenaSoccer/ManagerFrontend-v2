@@ -16,7 +16,7 @@
   </q-page>
 </template>
 <script setup lang="ts">
-import SecuritySettings from 'src/modules/dashboard/components/Security/SecuritySettings.vue';
-import SessionManager from 'src/modules/dashboard/components/Security/SessionManager.vue';
+import SecuritySettings from '@/modules/dashboard/components/Security/SecuritySettings.vue';
+import SessionManager from '@/modules/dashboard/components/Security/SessionManager.vue';
 import APITokenSetter from '../components/Security/APITokenSetter.vue';
 </script>

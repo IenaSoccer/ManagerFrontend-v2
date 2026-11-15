@@ -17,25 +17,25 @@
   },
   "dependencies": {
     "@dotenvx/dotenvx": "^1.51.4",
-    "@quasar/extras": "^1.16.4",
+    "@quasar/extras": "^2.1.0",
     "@vueup/vue-quill": "^1.2.0",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
     "pinia": "^3.0.4",
-    "quasar": "^2.19.2",
+    "quasar": "^2.35.4",
     "vue": "^3.5.22",
-    "vue-router": "^4.0.12",
+    "vue-router": "^5.5.1",
     "vue3-recaptcha-v2": "^2.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.14.0",
-    "@quasar/app-vite": "^2.5.4",
-    "@types/node": "^20.5.9",
+    "@quasar/app-vite": "^3.10.4",
+    "@types/node": "^22.20.5",
     "@vue/eslint-config-prettier": "^10.1.0",
-    "@vue/eslint-config-typescript": "^14.4.0",
+    "@vue/eslint-config-typescript": "^14.9.0",
     "autoprefixer": "^10.4.22",
     "eslint": "^9.14.0",
-    "eslint-plugin-vue": "^10.4.0",
+    "eslint-plugin-vue": "^10.12.1",
     "globals": "^16.4.0",
     "prettier": "^3.3.3",
     "tailwindcss": "^3.4.18",
@@ -45,8 +45,7 @@
     "vue-tsc": "^3.0.7"
   },
   "engines": {
-    "node": "^28 || ^26 || ^24 || ^22 || ^20",
-    "npm": ">= 6.13.4",
-    "yarn": ">= 1.21.1"
+    "node": "^22.22.0 || ^24 || ^26 || ^28 || >=30",
+    "npm": "^10.9.4"
   }
 }

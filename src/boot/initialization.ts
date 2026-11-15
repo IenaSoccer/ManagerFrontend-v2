@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import type { Router, RouteRecordNormalized } from 'vue-router';
-import { useAuthStore } from 'src/modules/auth/stores/login';
+import { useAuthStore } from '@/modules/auth/stores/login';
 
 export default ({ store, router }: { store: any; router: Router }) => {
   const setAuthorization = (

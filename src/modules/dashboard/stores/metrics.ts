@@ -12,7 +12,7 @@ export const useMetricsStore = defineStore('MetricsStore', {
   }),
   getters: {
     pageInfo(): ApiMetricsEndpoints {
-      const base = String(process.env.API_URL ?? '#');
+      const base = String(import.meta.env.QCLI_API_URL ?? '#');
       return {
         STORE_GETRESOURCESMETRICS: base + '/metrics/resources',
         STORE_GETFOLDERSMETRICS: `${base}/metrics/folders`,

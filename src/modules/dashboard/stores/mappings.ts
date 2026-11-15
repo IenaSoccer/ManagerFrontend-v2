@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
-import type { ServerResponse } from 'src/interfaces/response';
+import type { ServerResponse } from '@/interfaces/response';
 import type { Mappings } from '../interfaces/mappings';
 import type { ApiMappingsEndpoints } from '../interfaces/endpoints';
 
@@ -14,7 +14,7 @@ export const useMappingsStore = defineStore('MappingsStore', {
   }),
   getters: {
     pageInfo(): ApiMappingsEndpoints {
-      const base = String(process.env.API_URL ?? '#');
+      const base = String(import.meta.env.QCLI_API_URL ?? '#');
       return {
         STORE_LISTMAPPINGS: base + '/mappings',
         STORE_ADDMAPPING: base + '/mappings',

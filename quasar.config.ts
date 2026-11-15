@@ -1,4 +1,4 @@
-import { defineConfig } from '#q-app/wrappers';
+import { defineConfig } from '#q-app';
 
 export default defineConfig((ctx) => {
   const environmentFile = ctx.dev ? '.env.development' : '.env.production';
@@ -6,20 +6,16 @@ export default defineConfig((ctx) => {
   return {
     boot: ['boot.ts', 'i18n.ts', 'initialization.ts', 'globals.ts', 'recaptcha.ts'],
     css: ['tailwind.css', 'app.scss', 'styles.css'],
-    extras: ['fontawesome-v6', 'roboto-font', 'material-icons'],
+    extras: ['fontawesome-v7', 'roboto-font', 'material-icons'],
     build: {
-      envFolder: 'config',
-      envFiles: [environmentFile],
+      vueOptionsAPI: true,
       env: {
-        API_URL: process.env.API_URL,
-        HOMEPAGE_URL: process.env.HOMEPAGE_URL,
-        MEDIA_URL: process.env.MEDIA_URL,
-        ATTACHMENTS_URL: process.env.ATTACHMENTS_URL,
-        PROFILE_URL: process.env.PROFILE_URL,
+        folder: 'config',
+        file: [environmentFile],
       },
       target: {
         browser: ['es2022', 'firefox115', 'chrome115', 'safari14'],
-        node: 'node20',
+        node: 'node22',
       },
       typescript: {
         strict: true,

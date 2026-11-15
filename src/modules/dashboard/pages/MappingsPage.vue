@@ -14,5 +14,5 @@
   </q-page>
 </template>
 <script setup lang="ts">
-import MappingHandler from 'src/modules/dashboard/components/Mappings/MappingHandler.vue';
+import MappingHandler from '@/modules/dashboard/components/Mappings/MappingHandler.vue';
 </script>

@@ -36,9 +36,9 @@
 </template>
 <script setup lang="ts">
 import { useQuasar, type EventBus } from 'quasar';
-import { handleStatus } from 'src/helpers/errors';
-import type { Globals } from 'src/interfaces/globals';
-import type { SessionType } from 'src/modules/auth/interfaces/payloads';
+import { handleStatus } from '@/helpers/errors';
+import type { Globals } from '@/interfaces/globals';
+import type { SessionType } from '@/modules/auth/interfaces/payloads';
 import { inject, onMounted, ref } from 'vue';
 
 const authStore = inject<Globals>('globals')?.stores.auth;

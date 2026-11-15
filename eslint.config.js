@@ -2,10 +2,10 @@ import js from '@eslint/js';
 import globals from 'globals';
 import pluginVue from 'eslint-plugin-vue';
 import pluginQuasar from '@quasar/app-vite/eslint';
-import { defineConfigWithVueTs, vueTsConfigs } from '@vue/eslint-config-typescript';
+import { vueTsConfigs, withVueTs } from '@vue/eslint-config-typescript';
 import prettierSkipFormatting from '@vue/eslint-config-prettier/skip-formatting';
 
-export default defineConfigWithVueTs(
+export default withVueTs(
   {
     /**
      * Ignore the following files.
@@ -52,7 +52,6 @@ export default defineConfigWithVueTs(
       globals: {
         ...globals.browser,
         ...globals.node, // SSR, Electron, config files
-        process: 'readonly', // process.env.*
         ga: 'readonly', // Google Analytics
         cordova: 'readonly',
         Capacitor: 'readonly',
@@ -68,9 +67,9 @@ export default defineConfigWithVueTs(
       // allow debugger during development only
       'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
 
-        '@typescript-eslint/no-redundant-type-constituents': 'off',
-        '@typescript-eslint/no-explicit-any': 'off',
-        '@typescript-eslint/prefer-promise-reject-errors': 'off',
+      '@typescript-eslint/no-redundant-type-constituents': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/prefer-promise-reject-errors': 'off',
     },
   },
 

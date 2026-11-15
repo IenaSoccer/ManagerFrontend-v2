@@ -17,8 +17,8 @@
   </q-page>
 </template>
 <script setup lang="ts">
-import FolderList from 'src/modules/dashboard/components/Resources/FolderList.vue';
-import ResourceEditor from 'src/modules/dashboard/components/Resources/ResourceEditor.vue';
+import FolderList from '@/modules/dashboard/components/Resources/FolderList.vue';
+import ResourceEditor from '@/modules/dashboard/components/Resources/ResourceEditor.vue';
 import ResourceList from '../components/Resources/ResourceList.vue';
 import AttachmentsArchive from '../components/Resources/AttachmentsArchive.vue';
 </script>

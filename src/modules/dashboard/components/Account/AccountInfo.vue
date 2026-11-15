@@ -76,14 +76,14 @@
   </div>
 </template>
 <script setup lang="ts">
-import { roles } from 'src/helpers/roles';
-import type { UserType } from 'src/modules/auth/interfaces/user';
+import { roles } from '@/helpers/roles';
+import type { UserType } from '@/modules/auth/interfaces/user';
 import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import { type EventBus } from 'quasar';
-import { handleStatus } from 'src/helpers/errors';
+import { handleStatus } from '@/helpers/errors';
 import { useRouter } from 'vue-router';
-import type { Globals } from 'src/interfaces/globals';
-import type { ServerResponse, ValidationError } from 'src/interfaces/response';
+import type { Globals } from '@/interfaces/globals';
+import type { ServerResponse, ValidationError } from '@/interfaces/response';
 
 const globals = inject('globals') as Globals;
 const accountStore = globals.stores.account;
@@ -104,7 +104,7 @@ const computedBirthday = computed(() => {
   return date.toLocaleDateString();
 });
 const computedThumbnail = computed(() => {
-  const baseURL = String(process.env.ATTACHMENTS_URL ?? '');
+  const baseURL = String(import.meta.env.QCLI_ATTACHMENTS_URL ?? '');
   return account.value?.details.thumbnail
     ? `${baseURL}/profiles/${account.value.details.thumbnail}`
     : `${baseURL}/avatar.png`;

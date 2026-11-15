@@ -122,14 +122,14 @@
 </template>
 
 <script setup lang="ts" name="UsersList">
-import { roles } from 'src/helpers/roles';
+import { roles } from '@/helpers/roles';
 import type { UpdateUserPayload } from '../../stores/users';
 import { inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useQuasar, type EventBus } from 'quasar';
-import { handleStatus } from 'src/helpers/errors';
-import type { UserInfo } from 'src/modules/auth/interfaces/user';
+import { handleStatus } from '@/helpers/errors';
+import type { UserInfo } from '@/modules/auth/interfaces/user';
 import UserDetails from './UserDetails.vue';
-import type { Globals } from 'src/interfaces/globals';
+import type { Globals } from '@/interfaces/globals';
 
 const globals = inject('globals') as Globals;
 const usersStore = globals.stores.users;
