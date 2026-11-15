@@ -168,6 +168,11 @@ jobs:
           set -Eeuo pipefail
           umask 027
 
+          fail() {
+            echo "::error::Release activation failed: $1" >&2
+            exit 1
+          }
+
           deploy_path="$1"
           release_id="$2"
           expected_checksum="$3"
@@ -177,28 +182,43 @@ jobs:
           current_link="$deploy_path/release"
           previous_link="$deploy_path/previous"
 
-          [[ "$deploy_path" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$deploy_path" != *".."* ]]
-          [[ "$release_id" =~ ^[0-9a-f]{40}-[0-9]+$ ]]
-          [[ "$expected_checksum" =~ ^[0-9a-f]{64}$ ]]
-          test -f "$incoming"
-          test ! -e "$release_dir"
-          printf '%s  %s\n' "$expected_checksum" "$incoming" | sha256sum --check --status
+          [[ "$deploy_path" =~ ^/[A-Za-z0-9._/-]+$ ]] ||
+            fail "DEPLOY_PATH is not a valid absolute Unix path"
+          [[ "$deploy_path" != *".."* ]] ||
+            fail "DEPLOY_PATH cannot contain .."
+          [[ "$release_id" =~ ^[0-9a-f]{40}-[0-9]+$ ]] ||
+            fail "RELEASE_ID has an invalid format"
+          [[ "$expected_checksum" =~ ^[0-9a-f]{64}$ ]] ||
+            fail "the expected archive checksum is invalid"
+          [[ -d "$releases_dir" ]] ||
+            fail "the releases directory does not exist or is not accessible"
+          [[ -f "$incoming" ]] ||
+            fail "the uploaded archive is missing"
+          [[ ! -e "$release_dir" && ! -L "$release_dir" ]] ||
+            fail "the release directory already exists"
 
-          mkdir "$release_dir"
-          tar -xzf "$incoming" -C "$release_dir"
+          command -v sha256sum >/dev/null || fail "sha256sum is not installed on the VPS"
+          actual_checksum="$(sha256sum "$incoming" | awk '{ print $1 }')"
+          [[ "$actual_checksum" == "$expected_checksum" ]] ||
+            fail "the uploaded archive checksum does not match"
+
+          mkdir -- "$release_dir" || fail "cannot create the release directory"
+          tar -xzf "$incoming" -C "$release_dir" || fail "cannot extract the release archive"
           rm -f -- "$incoming"
-          test -f "$release_dir/dist/spa/index.html"
+          [[ -f "$release_dir/dist/spa/index.html" ]] ||
+            fail "the archive does not contain dist/spa/index.html"
 
           if [[ -L "$current_link" ]]; then
-            ln -sfn "$(readlink -f "$current_link")" "$previous_link"
+            current_target="$(readlink -f "$current_link")" ||
+              fail "the current release symlink is broken"
+            ln -sfn "$current_target" "$previous_link"
           elif [[ -d "$current_link" ]]; then
             legacy_dir="$releases_dir/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
-            mv -- "$current_link" "$legacy_dir"
+            mv -- "$current_link" "$legacy_dir" ||
+              fail "cannot migrate the legacy release directory"
             ln -sfn "$legacy_dir" "$previous_link"
           elif [[ -e "$current_link" ]]; then
-            echo "Refusing to replace a non-directory deployment target" >&2
-            exit 1
+            fail "the current deployment target is neither a symlink nor a directory"
           fi
 
           rollback_on_error() {
@@ -214,9 +234,17 @@ jobs:
           trap rollback_on_error EXIT
 
           next_link="$deploy_path/.release-$release_id"
-          ln -s "$release_dir" "$next_link"
-          mv -Tf -- "$next_link" "$current_link"
-          test "$(readlink -f "$current_link")" = "$release_dir"
+          [[ ! -e "$next_link" && ! -L "$next_link" ]] ||
+            fail "the temporary activation symlink already exists"
+          ln -s "$release_dir" "$next_link" || fail "cannot create the activation symlink"
+          mv -Tf -- "$next_link" "$current_link" || fail "cannot activate the new release"
+
+          resolved_current="$(readlink -f "$current_link")" ||
+            fail "the activated release symlink cannot be resolved"
+          resolved_release="$(readlink -f "$release_dir")" ||
+            fail "the new release directory cannot be resolved"
+          [[ "$resolved_current" == "$resolved_release" ]] ||
+            fail "the active symlink does not point to the new release"
           trap - EXIT
           REMOTE_SCRIPT
 
