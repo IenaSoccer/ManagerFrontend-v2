@@ -253,6 +253,8 @@ jobs:
         env:
           HEALTHCHECK_URL: ${{ vars.DEPLOYMENT_URL }}
           EXPECTED_COMMIT: ${{ github.sha }}
+          BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
+          BASIC_AUTH_PASS: ${{ secrets.BASIC_AUTH_PASS }}
         run: |
           set -Eeuo pipefail
           if [[ -z "$HEALTHCHECK_URL" ]]; then
@@ -263,8 +265,38 @@ jobs:
             echo "DEPLOYMENT_URL is not configured; skipping the staging HTTP health check."
             exit 0
           fi
-          deployment_json="$(curl --fail --silent --show-error --location \
-            --retry 5 --retry-all-errors --retry-delay 3 --max-time 20 \
+
+          [[ "$HEALTHCHECK_URL" == https://* ]] || {
+            echo "DEPLOYMENT_URL must use HTTPS when Basic Auth is enabled." >&2
+            exit 1
+          }
+          [[ -n "$BASIC_AUTH_USER" ]] || {
+            echo "BASIC_AUTH_USER secret is required for the deployment health check." >&2
+            exit 1
+          }
+          [[ -n "$BASIC_AUTH_PASS" ]] || {
+            echo "BASIC_AUTH_PASS secret is required for the deployment health check." >&2
+            exit 1
+          }
+
+          curl_options=(
+            --fail
+            --silent
+            --show-error
+            --location
+            --retry 5
+            --retry-all-errors
+            --retry-delay 3
+            --max-time 20
+            --basic
+            --user "$BASIC_AUTH_USER:$BASIC_AUTH_PASS"
+          )
+
+          # Verify that the application root is reachable through Basic Auth.
+          curl "${curl_options[@]}" --output /dev/null "${HEALTHCHECK_URL%/}/"
+
+          # Verify that the active release is the commit built by this run.
+          deployment_json="$(curl "${curl_options[@]}" \
             "${HEALTHCHECK_URL%/}/deployment.json?run=$GITHUB_RUN_ID")"
           jq --exit-status --arg commit "$EXPECTED_COMMIT" \
             '.commit == $commit' <<< "$deployment_json" >/dev/null
