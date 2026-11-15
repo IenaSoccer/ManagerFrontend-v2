@@ -76,24 +76,47 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           set -Eeuo pipefail
-          : "${DEPLOY_HOST:?Missing HOST secret}"
-          : "${DEPLOY_USER:?Missing USERNAME secret}"
-          : "${DEPLOY_KEY:?Missing SSH_PRIVATE_KEY secret}"
-          : "${SSH_KNOWN_HOSTS:?Missing SSH_KNOWN_HOSTS secret}"
-          : "${DEPLOY_PATH:?Missing DEPLOY_PATH secret}"
 
-          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
-          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]]
-          (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 ))
-          [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]
-          [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$DEPLOY_PATH" != *".."* ]]
+          fail() {
+            echo "::error::$1" >&2
+            exit 1
+          }
+
+          [[ -n "$DEPLOY_HOST" ]] || fail "Missing HOST secret"
+          [[ -n "$DEPLOY_USER" ]] || fail "Missing USERNAME secret"
+          [[ -n "$DEPLOY_KEY" ]] || fail "Missing SSH_PRIVATE_KEY secret"
+          [[ -n "$SSH_KNOWN_HOSTS" ]] || fail "Missing SSH_KNOWN_HOSTS secret"
+          [[ -n "$DEPLOY_PATH" ]] || fail "Missing DEPLOY_PATH secret"
+
+          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]] ||
+            fail "HOST must contain only a hostname, without ssh:// or :port"
+          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] ||
+            fail "SSH_PORT must be an integer between 1 and 65535"
+          (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 )) ||
+            fail "SSH_PORT must be an integer between 1 and 65535"
+          [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] ||
+            fail "USERNAME contains unsupported characters"
+          [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]] ||
+            fail "DEPLOY_PATH must be an absolute Unix path"
+          [[ "$DEPLOY_PATH" != *".."* ]] ||
+            fail "DEPLOY_PATH cannot contain .."
 
           install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/deploy_key"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          printf '%s\n' "$DEPLOY_KEY" | tr -d '\r' > "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
-          ssh-keygen -l -f "$HOME/.ssh/known_hosts" >/dev/null
+
+          ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null 2>&1 ||
+            fail "SSH_PRIVATE_KEY is invalid, encrypted, or not a private key"
+          ssh-keygen -l -f "$HOME/.ssh/known_hosts" >/dev/null 2>&1 ||
+            fail "SSH_KNOWN_HOSTS is invalid; store ssh-keyscan output, not a SHA256 fingerprint"
+
+          known_host="$DEPLOY_HOST"
+          if [[ "$DEPLOY_PORT" != "22" ]]; then
+            known_host="[$DEPLOY_HOST]:$DEPLOY_PORT"
+          fi
+          ssh-keygen -F "$known_host" -f "$HOME/.ssh/known_hosts" >/dev/null ||
+            fail "SSH_KNOWN_HOSTS has no entry matching HOST and SSH_PORT"
 
           {
             printf 'Host deploy-target\n'
@@ -110,7 +133,15 @@ jobs:
           } > "$HOME/.ssh/config"
           chmod 600 "$HOME/.ssh/config"
 
-          ssh deploy-target "mkdir -p -- '$DEPLOY_PATH/releases'"
+          if ! ssh deploy-target bash -s -- "$DEPLOY_PATH" <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+          deploy_path="$1"
+          mkdir -p -- "$deploy_path/releases"
+          test -d "$deploy_path/releases"
+          REMOTE_SCRIPT
+          then
+            fail "SSH connection failed or DEPLOY_PATH is not writable; verify host, user, key, port and server permissions"
+          fi
 
       - name: Upload build artifact
         env:
