@@ -68,7 +68,7 @@ jobs:
 
       - name: Configure verified SSH connection
         env:
-          DEPLOY_HOST: ${{ secrets.HOST }}
+          DEPLOY_HOST: ${{ secrets.SSH_HOST }}
           DEPLOY_PORT: ${{ secrets.SSH_PORT || '22' }}
           DEPLOY_USER: ${{ secrets.USERNAME }}
           DEPLOY_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -82,7 +82,7 @@ jobs:
             exit 1
           }
 
-          [[ -n "$DEPLOY_HOST" ]] || fail "Missing HOST secret"
+          [[ -n "$DEPLOY_HOST" ]] || fail "Missing VPS host configuration"
           [[ -n "$DEPLOY_USER" ]] || fail "Missing USERNAME secret"
           [[ -n "$DEPLOY_KEY" ]] || fail "Missing SSH_PRIVATE_KEY secret"
           [[ -n "$SSH_KNOWN_HOSTS" ]] || fail "Missing SSH_KNOWN_HOSTS secret"
@@ -119,7 +119,7 @@ jobs:
             fail "SSH_KNOWN_HOSTS has no entry matching HOST and SSH_PORT"
 
           {
-            printf 'Host deploy-target\n'
+            printf 'Host ienavps\n'
             printf '  HostName %s\n' "$DEPLOY_HOST"
             printf '  Port %s\n' "$DEPLOY_PORT"
             printf '  User %s\n' "$DEPLOY_USER"
@@ -133,7 +133,7 @@ jobs:
           } > "$HOME/.ssh/config"
           chmod 600 "$HOME/.ssh/config"
 
-          if ! ssh deploy-target bash -s -- "$DEPLOY_PATH" <<'REMOTE_SCRIPT'
+          if ! ssh ienavps bash -s -- "$DEPLOY_PATH" <<'REMOTE_SCRIPT'
           set -Eeuo pipefail
           deploy_path="$1"
           mkdir -p -- "$deploy_path/releases"
@@ -149,7 +149,7 @@ jobs:
           RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
         run: |
           set -Eeuo pipefail
-          scp "$RUNNER_TEMP/release.tgz" "deploy-target:$DEPLOY_PATH/.incoming-$RELEASE_ID.tgz"
+          scp "$RUNNER_TEMP/release.tgz" "ienavps:$DEPLOY_PATH/.incoming-$RELEASE_ID.tgz"
 
       - name: Activate release atomically
         id: activate
@@ -159,7 +159,7 @@ jobs:
           EXPECTED_CHECKSUM: ${{ steps.package.outputs.checksum }}
         run: |
           set -Eeuo pipefail
-          ssh deploy-target bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" "$EXPECTED_CHECKSUM" <<'REMOTE_SCRIPT'
+          ssh ienavps bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" "$EXPECTED_CHECKSUM" <<'REMOTE_SCRIPT'
           set -Eeuo pipefail
           umask 027
 
@@ -241,7 +241,7 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           set -Eeuo pipefail
-          ssh deploy-target bash -s -- "$DEPLOY_PATH" <<'REMOTE_SCRIPT'
+          ssh ienavps bash -s -- "$DEPLOY_PATH" <<'REMOTE_SCRIPT'
           set -Eeuo pipefail
           deploy_path="$1"
           releases_dir="$deploy_path/releases"
@@ -265,7 +265,7 @@ jobs:
           RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
         run: |
           set -Eeuo pipefail
-          ssh deploy-target bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" <<'REMOTE_SCRIPT'
+          ssh ienavps bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" <<'REMOTE_SCRIPT'
           set -Eeuo pipefail
           deploy_path="$1"
           release_id="$2"
