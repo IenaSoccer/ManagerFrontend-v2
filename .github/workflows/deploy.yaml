@@ -1,10 +1,8 @@
-name: Build and deploy Quasar application
+name: Deploy
 
 on:
   push:
-    branches:
-      - release
-      - staging
+    branches: [release, staging]
   workflow_dispatch:
 
 permissions:
@@ -20,330 +18,174 @@ defaults:
 
 jobs:
   deploy:
-    name: Deploy ${{ github.ref_name }}
     if: ${{ github.ref_name == 'release' || github.ref_name == 'staging' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    environment:
-      name: ${{ github.ref_name == 'release' && 'production' || 'staging' }}
+    environment: ${{ github.ref_name == 'release' && 'production' || 'staging' }}
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+      SSH_USER: ${{ secrets.USERNAME }}
+      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      DEPLOYMENT_URL: ${{ vars.DEPLOYMENT_URL }}
+      BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
+      BASIC_AUTH_PASS: ${{ secrets.BASIC_AUTH_PASS }}
+      RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
 
     steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Set up Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22.23.5'
           cache: npm
-          cache-dependency-path: package-lock.json
 
-      - name: Pin npm
-        run: npm install --global npm@10.9.4 --ignore-scripts
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Audit dependencies
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Test application
-        run: npm test
-
-      - name: Build production assets
-        run: npm run build
-
-      - name: Package verified build
-        id: package
+      - name: Verify and package
         run: |
           set -Eeuo pipefail
+          npm install --global npm@10.9.4 --ignore-scripts
+          npm ci --ignore-scripts
+          npm run postinstall
+          npm test
+          npm audit --omit=dev --audit-level=high
+          npm run build
           test -f dist/spa/index.html
           printf '{"commit":"%s","run_id":"%s"}\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" \
             > dist/spa/deployment.json
           tar -czf "$RUNNER_TEMP/release.tgz" dist/spa
-          checksum="$(sha256sum "$RUNNER_TEMP/release.tgz" | cut -d ' ' -f 1)"
-          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
 
-      - name: Configure verified SSH connection
-        env:
-          DEPLOY_HOST: ${{ secrets.SSH_HOST }}
-          DEPLOY_PORT: ${{ secrets.SSH_PORT || '22' }}
-          DEPLOY_USER: ${{ secrets.USERNAME }}
-          DEPLOY_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      - name: Configure SSH
         run: |
           set -Eeuo pipefail
-
-          fail() {
-            echo "::error::$1" >&2
-            exit 1
-          }
-
-          [[ -n "$DEPLOY_HOST" ]] || fail "Missing VPS host configuration"
-          [[ -n "$DEPLOY_USER" ]] || fail "Missing USERNAME secret"
-          [[ -n "$DEPLOY_KEY" ]] || fail "Missing SSH_PRIVATE_KEY secret"
-          [[ -n "$SSH_KNOWN_HOSTS" ]] || fail "Missing SSH_KNOWN_HOSTS secret"
-          [[ -n "$DEPLOY_PATH" ]] || fail "Missing DEPLOY_PATH secret"
-
-          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]] ||
-            fail "HOST must contain only a hostname, without ssh:// or :port"
-          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] ||
-            fail "SSH_PORT must be an integer between 1 and 65535"
-          (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 )) ||
-            fail "SSH_PORT must be an integer between 1 and 65535"
-          [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] ||
-            fail "USERNAME contains unsupported characters"
-          [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]] ||
-            fail "DEPLOY_PATH must be an absolute Unix path"
-          [[ "$DEPLOY_PATH" != *".."* ]] ||
-            fail "DEPLOY_PATH cannot contain .."
+          : "${SSH_HOST:?Missing SSH_HOST secret}"
+          : "${SSH_USER:?Missing USERNAME secret}"
+          : "${SSH_KEY:?Missing SSH_PRIVATE_KEY secret}"
+          : "${SSH_KNOWN_HOSTS:?Missing SSH_KNOWN_HOSTS secret}"
+          : "${DEPLOY_PATH:?Missing DEPLOY_PATH secret}"
+          [[ "$SSH_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]] && (( SSH_PORT >= 1 && SSH_PORT <= 65535 ))
+          [[ "$SSH_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]
+          [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ && "$DEPLOY_PATH" != *".."* && "$DEPLOY_PATH" != / ]]
 
           install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$DEPLOY_KEY" | tr -d '\r' > "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$HOME/.ssh/deploy_key"
           printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts.source"
           chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts.source"
+          ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null
 
-          ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null 2>&1 ||
-            fail "SSH_PRIVATE_KEY is invalid, encrypted, or not a private key"
-          ssh-keygen -l -f "$HOME/.ssh/known_hosts.source" >/dev/null 2>&1 ||
-            fail "SSH_KNOWN_HOSTS is invalid; store ssh-keyscan output, not a SHA256 fingerprint"
-
-          # Pin the trusted key material to our stable SSH alias. This avoids
-          # hostname/IP mismatches without weakening host-key verification.
-          awk '
-            $1 !~ /^#/ && NF >= 3 && $2 ~ /^(ssh-|ecdsa-|sk-)/ {
-              print "ienavps", $2, $3
-            }
-          ' "$HOME/.ssh/known_hosts.source" > "$HOME/.ssh/known_hosts"
+          awk '$1 !~ /^#/ && NF >= 3 && $2 ~ /^(ssh-|ecdsa-|sk-)/ {
+            print "ienavps", $2, $3
+          }' "$HOME/.ssh/known_hosts.source" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -F ienavps -f "$HOME/.ssh/known_hosts" >/dev/null
           chmod 600 "$HOME/.ssh/known_hosts"
-          ssh-keygen -F ienavps -f "$HOME/.ssh/known_hosts" >/dev/null ||
-            fail "SSH_KNOWN_HOSTS contains no supported OpenSSH host key"
 
-          {
-            printf 'Host ienavps\n'
-            printf '  HostName %s\n' "$DEPLOY_HOST"
-            printf '  Port %s\n' "$DEPLOY_PORT"
-            printf '  User %s\n' "$DEPLOY_USER"
-            printf '  IdentityFile %s\n' "$HOME/.ssh/deploy_key"
-            printf '  UserKnownHostsFile %s\n' "$HOME/.ssh/known_hosts"
-            printf '  HostKeyAlias ienavps\n'
-            printf '  IdentitiesOnly yes\n'
-            printf '  BatchMode yes\n'
-            printf '  StrictHostKeyChecking yes\n'
-            printf '  ConnectTimeout 15\n'
-            printf '  LogLevel ERROR\n'
-          } > "$HOME/.ssh/config"
+          cat > "$HOME/.ssh/config" <<SSH_CONFIG
+          Host ienavps
+            HostName $SSH_HOST
+            Port $SSH_PORT
+            User $SSH_USER
+            IdentityFile $HOME/.ssh/deploy_key
+            UserKnownHostsFile $HOME/.ssh/known_hosts
+            HostKeyAlias ienavps
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            ConnectTimeout 15
+            LogLevel ERROR
+          SSH_CONFIG
           chmod 600 "$HOME/.ssh/config"
 
-          if ! ssh ienavps bash -s -- "$DEPLOY_PATH" <<'REMOTE_SCRIPT'
-          set -Eeuo pipefail
-          deploy_path="$1"
-          mkdir -p -- "$deploy_path/releases"
-          test -d "$deploy_path/releases"
-          REMOTE_SCRIPT
-          then
-            fail "SSH connection failed or DEPLOY_PATH is not writable; verify host, user, key, port and server permissions"
-          fi
-
-      - name: Upload build artifact
-        env:
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
-        run: |
-          set -Eeuo pipefail
-          scp "$RUNNER_TEMP/release.tgz" "ienavps:$DEPLOY_PATH/.incoming-$RELEASE_ID.tgz"
-
-      - name: Activate release atomically
+      - name: Activate release
         id: activate
-        env:
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
-          EXPECTED_CHECKSUM: ${{ steps.package.outputs.checksum }}
         run: |
           set -Eeuo pipefail
-          ssh ienavps bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" "$EXPECTED_CHECKSUM" <<'REMOTE_SCRIPT'
+          checksum="$(sha256sum "$RUNNER_TEMP/release.tgz" | awk '{ print $1 }')"
+          ssh ienavps "mkdir -p -- '$DEPLOY_PATH/incoming' '$DEPLOY_PATH/releases'"
+          scp "$RUNNER_TEMP/release.tgz" "ienavps:$DEPLOY_PATH/incoming/$RELEASE_ID.tgz"
+
+          ssh ienavps bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" "$checksum" <<'REMOTE_SCRIPT'
           set -Eeuo pipefail
-          umask 027
-
-          fail() {
-            echo "::error::Release activation failed: $1" >&2
-            exit 1
-          }
-
           deploy_path="$1"
           release_id="$2"
           expected_checksum="$3"
-          releases_dir="$deploy_path/releases"
-          release_dir="$releases_dir/$release_id"
-          incoming="$deploy_path/.incoming-$release_id.tgz"
-          current_link="$deploy_path/release"
-          previous_link="$deploy_path/previous"
+          archive="$deploy_path/incoming/$release_id.tgz"
+          releases="$deploy_path/releases"
+          release="$releases/$release_id"
+          current="$deploy_path/release"
+          previous="$deploy_path/previous"
 
-          [[ "$deploy_path" =~ ^/[A-Za-z0-9._/-]+$ ]] ||
-            fail "DEPLOY_PATH is not a valid absolute Unix path"
-          [[ "$deploy_path" != *".."* ]] ||
-            fail "DEPLOY_PATH cannot contain .."
-          [[ "$release_id" =~ ^[0-9a-f]{40}-[0-9]+$ ]] ||
-            fail "RELEASE_ID has an invalid format"
-          [[ "$expected_checksum" =~ ^[0-9a-f]{64}$ ]] ||
-            fail "the expected archive checksum is invalid"
-          [[ -d "$releases_dir" ]] ||
-            fail "the releases directory does not exist or is not accessible"
-          [[ -f "$incoming" ]] ||
-            fail "the uploaded archive is missing"
-          [[ ! -e "$release_dir" && ! -L "$release_dir" ]] ||
-            fail "the release directory already exists"
+          test -f "$archive"
+          test "$(sha256sum "$archive" | awk '{ print $1 }')" = "$expected_checksum"
+          test ! -e "$release"
+          mkdir -- "$release"
+          tar -xzf "$archive" -C "$release"
+          rm -f -- "$archive"
+          test -f "$release/dist/spa/index.html"
 
-          command -v sha256sum >/dev/null || fail "sha256sum is not installed on the VPS"
-          actual_checksum="$(sha256sum "$incoming" | awk '{ print $1 }')"
-          [[ "$actual_checksum" == "$expected_checksum" ]] ||
-            fail "the uploaded archive checksum does not match"
-
-          mkdir -- "$release_dir" || fail "cannot create the release directory"
-          tar -xzf "$incoming" -C "$release_dir" || fail "cannot extract the release archive"
-          rm -f -- "$incoming"
-          [[ -f "$release_dir/dist/spa/index.html" ]] ||
-            fail "the archive does not contain dist/spa/index.html"
-
-          if [[ -L "$current_link" ]]; then
-            current_target="$(readlink -f "$current_link")" ||
-              fail "the current release symlink is broken"
-            ln -sfn "$current_target" "$previous_link"
-          elif [[ -d "$current_link" ]]; then
-            legacy_dir="$releases_dir/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
-            mv -- "$current_link" "$legacy_dir" ||
-              fail "cannot migrate the legacy release directory"
-            ln -sfn "$legacy_dir" "$previous_link"
-          elif [[ -e "$current_link" ]]; then
-            fail "the current deployment target is neither a symlink nor a directory"
+          if test -d "$current" && test ! -L "$current"; then
+            legacy="$releases/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
+            mv -- "$current" "$legacy"
+            ln -sfn "$legacy" "$previous"
+          elif previous_target="$(readlink -f "$current" 2>/dev/null)" && test -d "$previous_target"; then
+            ln -sfn "$previous_target" "$previous"
           fi
 
-          rollback_on_error() {
-            status=$?
-            trap - EXIT
-            if (( status != 0 )) && [[ -L "$previous_link" ]]; then
-              fallback_link="$deploy_path/.rollback-$release_id"
-              ln -s "$(readlink -f "$previous_link")" "$fallback_link"
-              mv -Tf -- "$fallback_link" "$current_link"
-            fi
-            exit "$status"
-          }
-          trap rollback_on_error EXIT
+          next="$deploy_path/.release-$release_id"
+          rm -f -- "$next"
+          ln -s "$release" "$next"
+          mv -Tf -- "$next" "$current"
 
-          next_link="$deploy_path/.release-$release_id"
-          [[ ! -e "$next_link" && ! -L "$next_link" ]] ||
-            fail "the temporary activation symlink already exists"
-          ln -s "$release_dir" "$next_link" || fail "cannot create the activation symlink"
-          mv -Tf -- "$next_link" "$current_link" || fail "cannot activate the new release"
-
-          resolved_current="$(readlink -f "$current_link")" ||
-            fail "the activated release symlink cannot be resolved"
-          resolved_release="$(readlink -f "$release_dir")" ||
-            fail "the new release directory cannot be resolved"
-          [[ "$resolved_current" == "$resolved_release" ]] ||
-            fail "the active symlink does not point to the new release"
-          trap - EXIT
+          current_target="$(readlink -f "$current")"
+          previous_target="$(readlink -f "$previous" 2>/dev/null || true)"
+          find "$releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' |
+            sort -rn | tail -n +6 | cut -d' ' -f2- |
+            while IFS= read -r old; do
+              old="$(readlink -f "$old")"
+              test "$old" = "$current_target" || test "$old" = "$previous_target" || rm -rf -- "$old"
+            done || true
           REMOTE_SCRIPT
 
-      - name: Verify deployed application
+      - name: Verify deployment
         id: health
-        env:
-          HEALTHCHECK_URL: ${{ vars.DEPLOYMENT_URL }}
-          EXPECTED_COMMIT: ${{ github.sha }}
-          BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
-          BASIC_AUTH_PASS: ${{ secrets.BASIC_AUTH_PASS }}
         run: |
           set -Eeuo pipefail
-          if [[ -z "$HEALTHCHECK_URL" ]]; then
-            if [[ "$GITHUB_REF_NAME" == 'release' ]]; then
-              echo "DEPLOYMENT_URL is required for production deployments." >&2
-              exit 1
-            fi
-            echo "DEPLOYMENT_URL is not configured; skipping the staging HTTP health check."
+          if [[ -z "$DEPLOYMENT_URL" && "$GITHUB_REF_NAME" == staging ]]; then
             exit 0
           fi
+          : "${DEPLOYMENT_URL:?Missing DEPLOYMENT_URL variable}"
+          : "${BASIC_AUTH_USER:?Missing BASIC_AUTH_USER secret}"
+          : "${BASIC_AUTH_PASS:?Missing BASIC_AUTH_PASS secret}"
+          [[ "$DEPLOYMENT_URL" == https://* ]]
 
-          [[ "$HEALTHCHECK_URL" == https://* ]] || {
-            echo "DEPLOYMENT_URL must use HTTPS when Basic Auth is enabled." >&2
-            exit 1
-          }
-          [[ -n "$BASIC_AUTH_USER" ]] || {
-            echo "BASIC_AUTH_USER secret is required for the deployment health check." >&2
-            exit 1
-          }
-          [[ -n "$BASIC_AUTH_PASS" ]] || {
-            echo "BASIC_AUTH_PASS secret is required for the deployment health check." >&2
-            exit 1
-          }
+          curl_args=(--fail --silent --show-error --location --retry 5
+            --retry-all-errors --retry-delay 3 --max-time 20
+            --basic --user "$BASIC_AUTH_USER:$BASIC_AUTH_PASS")
+          curl "${curl_args[@]}" --output /dev/null "${DEPLOYMENT_URL%/}/"
+          deployment="$(curl "${curl_args[@]}" \
+            "${DEPLOYMENT_URL%/}/deployment.json?run=$GITHUB_RUN_ID")"
+          jq --exit-status --arg commit "$GITHUB_SHA" '.commit == $commit' \
+            <<< "$deployment" >/dev/null
 
-          curl_options=(
-            --fail
-            --silent
-            --show-error
-            --location
-            --retry 5
-            --retry-all-errors
-            --retry-delay 3
-            --max-time 20
-            --basic
-            --user "$BASIC_AUTH_USER:$BASIC_AUTH_PASS"
-          )
-
-          # Verify that the application root is reachable through Basic Auth.
-          curl "${curl_options[@]}" --output /dev/null "${HEALTHCHECK_URL%/}/"
-
-          # Verify that the active release is the commit built by this run.
-          deployment_json="$(curl "${curl_options[@]}" \
-            "${HEALTHCHECK_URL%/}/deployment.json?run=$GITHUB_RUN_ID")"
-          jq --exit-status --arg commit "$EXPECTED_COMMIT" \
-            '.commit == $commit' <<< "$deployment_json" >/dev/null
-
-      - name: Remove inactive releases older than 30 days
-        env:
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-        run: |
-          set -Eeuo pipefail
-          ssh ienavps bash -s -- "$DEPLOY_PATH" <<'REMOTE_SCRIPT'
-          set -Eeuo pipefail
-          deploy_path="$1"
-          releases_dir="$deploy_path/releases"
-          current_target="$(readlink -f "$deploy_path/release")"
-          previous_target="$(readlink -f "$deploy_path/previous" 2>/dev/null || true)"
-
-          find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -mtime +30 -print0 |
-            while IFS= read -r -d '' candidate; do
-              candidate_real="$(readlink -f "$candidate")"
-              [[ "$candidate_real" == "$releases_dir/"* ]] || continue
-              [[ "$candidate_real" == "$current_target" ]] && continue
-              [[ "$candidate_real" == "$previous_target" ]] && continue
-              rm -rf -- "$candidate_real"
-            done
-          REMOTE_SCRIPT
-
-      - name: Roll back failed health check
+      - name: Roll back
         if: ${{ failure() && steps.activate.outcome == 'success' && steps.health.outcome == 'failure' }}
-        env:
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
         run: |
           set -Eeuo pipefail
           ssh ienavps bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" <<'REMOTE_SCRIPT'
           set -Eeuo pipefail
           deploy_path="$1"
           release_id="$2"
-          previous_link="$deploy_path/previous"
-          current_link="$deploy_path/release"
-          test -L "$previous_link"
-          rollback_link="$deploy_path/.health-rollback-$release_id"
-          ln -s "$(readlink -f "$previous_link")" "$rollback_link"
-          mv -Tf -- "$rollback_link" "$current_link"
+          target="$(readlink -f "$deploy_path/previous")"
+          test -d "$target"
+          rollback="$deploy_path/.rollback-$release_id"
+          rm -f -- "$rollback"
+          ln -s "$target" "$rollback"
+          mv -Tf -- "$rollback" "$deploy_path/release"
           REMOTE_SCRIPT
 
-      - name: Remove runner SSH credentials
+      - name: Remove SSH credentials
         if: ${{ always() }}
-        run: >-
-          rm -f -- "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
-          "$HOME/.ssh/known_hosts.source" "$HOME/.ssh/config"
+        run: rm -f -- "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts" "$HOME/.ssh/known_hosts.source" "$HOME/.ssh/config"
