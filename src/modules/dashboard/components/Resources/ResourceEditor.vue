@@ -137,6 +137,7 @@ import type { EventBus } from 'quasar';
 import { handleStatus } from '@/helpers/errors';
 import type { Globals } from '@/interfaces/globals';
 import type { ServerResponse, ValidationError } from '@/interfaces/response';
+import { cloneReactiveData } from '@/helpers/clone';
 
 const globals = inject('globals') as Globals;
 const resourcesStore = globals.stores.resources;
@@ -155,7 +156,7 @@ const QuillEditor = defineAsyncComponent(async () => {
   return module.QuillEditor;
 });
 
-const cloneResource = (value: Resource<string>) => structuredClone(value);
+const cloneResource = (value: Resource<string>) => cloneReactiveData(value);
 const closeEditor = () => {
   showForm.value = false;
   resource.value = null;

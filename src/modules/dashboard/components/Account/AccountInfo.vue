@@ -84,6 +84,7 @@ import { handleStatus } from '@/helpers/errors';
 import { useRouter } from 'vue-router';
 import type { Globals } from '@/interfaces/globals';
 import type { ServerResponse, ValidationError } from '@/interfaces/response';
+import { cloneReactiveData } from '@/helpers/clone';
 
 const globals = inject('globals') as Globals;
 const accountStore = globals.stores.account;
@@ -117,8 +118,8 @@ const fetchAccountInfo = () => {
     .getUserInfo()
     .then((user) => {
       if (!user) return;
-      account.value = structuredClone(user);
-      originalAccount.value = structuredClone(user);
+      account.value = cloneReactiveData(user);
+      originalAccount.value = cloneReactiveData(user);
       isLoading.value = false;
     })
     .catch((error: ServerResponse) => {
@@ -129,7 +130,9 @@ const fetchAccountInfo = () => {
 };
 
 const toggleEditMode = () => {
-  if (isEditing.value && originalAccount.value) account.value = structuredClone(originalAccount.value);
+  if (isEditing.value && originalAccount.value) {
+    account.value = cloneReactiveData(originalAccount.value);
+  }
   isEditing.value = !isEditing.value;
 };
 const saveChanges = () => {
@@ -144,7 +147,7 @@ const saveChanges = () => {
     })
     .then(() => {
       isEditing.value = false;
-      originalAccount.value = structuredClone(account.value!);
+      originalAccount.value = cloneReactiveData(account.value!);
 
       bus?.emit('success:general', {
         title: 'Profilo modificato correttamente!',
