@@ -6,7 +6,7 @@ export default defineBoot(({ app }: { app: App }) => {
   app.provide(
     'recaptcha',
     install(app, {
-      sitekey: '6Le_qIspAAAAAE-LWzHolzIZCeW2XWKIvdMGUnXC',
+      sitekey: '6LfInSUuAAAAADoPgLC-aj-Y72Fat3dDnpG-POZW',
     }),
   );
 });

@@ -1,9 +1,8 @@
-name: Deploy
+name: Deploy SPA
 
 on:
   push:
     branches: [release, staging]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,180 +11,28 @@ concurrency:
   group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
   deploy:
-    if: ${{ github.ref_name == 'release' || github.ref_name == 'staging' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: ${{ github.ref_name == 'release' && 'production' || 'staging' }}
-    env:
-      SSH_HOST: ${{ secrets.SSH_HOST }}
-      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
-      SSH_USER: ${{ secrets.USERNAME }}
-      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-      DEPLOYMENT_URL: ${{ vars.DEPLOYMENT_URL }}
-      BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
-      BASIC_AUTH_PASS: ${{ secrets.BASIC_AUTH_PASS }}
-      RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
-
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '22.23.5'
-          cache: npm
+      - uses: ./.github/actions/verify-spa
 
-      - name: Verify and package
-        run: |
-          set -Eeuo pipefail
-          npm install --global npm@10.9.4 --ignore-scripts
-          npm ci --ignore-scripts
-          npm run postinstall
-          npm test
-          npm audit --omit=dev --audit-level=high
-          npm run build
-          test -f dist/spa/index.html
-          printf '{"commit":"%s","run_id":"%s"}\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" \
-            > dist/spa/deployment.json
-          tar -czf "$RUNNER_TEMP/release.tgz" dist/spa
+      - name: Build and package release
+        run: bash deploy/package-release.sh
 
-      - name: Configure SSH
-        run: |
-          set -Eeuo pipefail
-          : "${SSH_HOST:?Missing SSH_HOST secret}"
-          : "${SSH_USER:?Missing USERNAME secret}"
-          : "${SSH_KEY:?Missing SSH_PRIVATE_KEY secret}"
-          : "${SSH_KNOWN_HOSTS:?Missing SSH_KNOWN_HOSTS secret}"
-          : "${DEPLOY_PATH:?Missing DEPLOY_PATH secret}"
-          [[ "$SSH_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
-          [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]] && (( SSH_PORT >= 1 && SSH_PORT <= 65535 ))
-          [[ "$SSH_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]
-          [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ && "$DEPLOY_PATH" != *".."* && "$DEPLOY_PATH" != / ]]
-
-          install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$HOME/.ssh/deploy_key"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts.source"
-          chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts.source"
-          ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null
-
-          awk '$1 !~ /^#/ && NF >= 3 && $2 ~ /^(ssh-|ecdsa-|sk-)/ {
-            print "ienavps", $2, $3
-          }' "$HOME/.ssh/known_hosts.source" > "$HOME/.ssh/known_hosts"
-          ssh-keygen -F ienavps -f "$HOME/.ssh/known_hosts" >/dev/null
-          chmod 600 "$HOME/.ssh/known_hosts"
-
-          cat > "$HOME/.ssh/config" <<SSH_CONFIG
-          Host ienavps
-            HostName $SSH_HOST
-            Port $SSH_PORT
-            User $SSH_USER
-            IdentityFile $HOME/.ssh/deploy_key
-            UserKnownHostsFile $HOME/.ssh/known_hosts
-            HostKeyAlias ienavps
-            IdentitiesOnly yes
-            BatchMode yes
-            StrictHostKeyChecking yes
-            ConnectTimeout 15
-            LogLevel ERROR
-          SSH_CONFIG
-          chmod 600 "$HOME/.ssh/config"
-
-      - name: Activate release
-        id: activate
-        run: |
-          set -Eeuo pipefail
-          checksum="$(sha256sum "$RUNNER_TEMP/release.tgz" | awk '{ print $1 }')"
-          ssh ienavps "mkdir -p -- '$DEPLOY_PATH/incoming' '$DEPLOY_PATH/releases'"
-          scp "$RUNNER_TEMP/release.tgz" "ienavps:$DEPLOY_PATH/incoming/$RELEASE_ID.tgz"
-
-          ssh ienavps bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" "$checksum" <<'REMOTE_SCRIPT'
-          set -Eeuo pipefail
-          deploy_path="$1"
-          release_id="$2"
-          expected_checksum="$3"
-          archive="$deploy_path/incoming/$release_id.tgz"
-          releases="$deploy_path/releases"
-          release="$releases/$release_id"
-          current="$deploy_path/release"
-          previous="$deploy_path/previous"
-
-          test -f "$archive"
-          test "$(sha256sum "$archive" | awk '{ print $1 }')" = "$expected_checksum"
-          test ! -e "$release"
-          mkdir -- "$release"
-          tar -xzf "$archive" -C "$release"
-          rm -f -- "$archive"
-          test -f "$release/dist/spa/index.html"
-
-          if test -d "$current" && test ! -L "$current"; then
-            legacy="$releases/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
-            mv -- "$current" "$legacy"
-            ln -sfn "$legacy" "$previous"
-          elif previous_target="$(readlink -f "$current" 2>/dev/null)" && test -d "$previous_target"; then
-            ln -sfn "$previous_target" "$previous"
-          fi
-
-          next="$deploy_path/.release-$release_id"
-          rm -f -- "$next"
-          ln -s "$release" "$next"
-          mv -Tf -- "$next" "$current"
-
-          current_target="$(readlink -f "$current")"
-          previous_target="$(readlink -f "$previous" 2>/dev/null || true)"
-          find "$releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' |
-            sort -rn | tail -n +6 | cut -d' ' -f2- |
-            while IFS= read -r old; do
-              old="$(readlink -f "$old")"
-              test "$old" = "$current_target" || test "$old" = "$previous_target" || rm -rf -- "$old"
-            done || true
-          REMOTE_SCRIPT
-
-      - name: Verify deployment
-        id: health
-        run: |
-          set -Eeuo pipefail
-          if [[ -z "$DEPLOYMENT_URL" && "$GITHUB_REF_NAME" == staging ]]; then
-            exit 0
-          fi
-          : "${DEPLOYMENT_URL:?Missing DEPLOYMENT_URL variable}"
-          : "${BASIC_AUTH_USER:?Missing BASIC_AUTH_USER secret}"
-          : "${BASIC_AUTH_PASS:?Missing BASIC_AUTH_PASS secret}"
-          [[ "$DEPLOYMENT_URL" == https://* ]]
-
-          curl_args=(--fail --silent --show-error --location --retry 5
-            --retry-all-errors --retry-delay 3 --max-time 20
-            --basic --user "$BASIC_AUTH_USER:$BASIC_AUTH_PASS")
-          curl "${curl_args[@]}" --output /dev/null "${DEPLOYMENT_URL%/}/"
-          deployment="$(curl "${curl_args[@]}" \
-            "${DEPLOYMENT_URL%/}/deployment.json?run=$GITHUB_RUN_ID")"
-          jq --exit-status --arg commit "$GITHUB_SHA" '.commit == $commit' \
-            <<< "$deployment" >/dev/null
-
-      - name: Roll back
-        if: ${{ failure() && steps.activate.outcome == 'success' && steps.health.outcome == 'failure' }}
-        run: |
-          set -Eeuo pipefail
-          ssh ienavps bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" <<'REMOTE_SCRIPT'
-          set -Eeuo pipefail
-          deploy_path="$1"
-          release_id="$2"
-          target="$(readlink -f "$deploy_path/previous")"
-          test -d "$target"
-          rollback="$deploy_path/.rollback-$release_id"
-          rm -f -- "$rollback"
-          ln -s "$target" "$rollback"
-          mv -Tf -- "$rollback" "$deploy_path/release"
-          REMOTE_SCRIPT
-
-      - name: Remove SSH credentials
-        if: ${{ always() }}
-        run: rm -f -- "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts" "$HOME/.ssh/known_hosts.source" "$HOME/.ssh/config"
+      - name: Deploy release over SSH
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          RELEASE_ID: ${{ github.sha }}-${{ github.run_attempt }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: bash deploy/upload-release.sh
